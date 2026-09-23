@@ -30,13 +30,13 @@ app.use((req, res, next) => {
 // Health check
 app.get(['/api/health', '/health'], (req, res) => res.json({
   status: 'ok',
-  system: 'Multi-Tenant Chemist Shop Management API',
+  system: 'Chemist Shop Management API',
   version: '2.5.0',
-  compliance: 'Indian Pharmacy Act, Drugs & Cosmetics Act 1940 (Schedule H/H1/X), GST Multi-Tenant Ready',
+  compliance: 'Indian Pharmacy Act, Drugs & Cosmetics Act 1940 (Schedule H/H1/X), GST Compliance Ready',
   timestamp: new Date().toISOString(),
 }));
 
-// Multi-Tenant API Routers (mounted on both /api/* and root /* for flexible client configs)
+// API Routers (mounted on both /api/* and root /* for flexible client configs)
 const routers = [
   { path: '/platform', router: platformRouter },
   { path: '/auth', router: authRouter },
@@ -72,8 +72,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {
-  console.log(`✅ Chemist Shop Multi-Tenant API running on http://localhost:${PORT}`);
-  console.log(`💊 Multi-Tenant Routers Active: Platform, Auth, Medicines, Batches, Suppliers, Purchases, POS, Customers, Prescriptions, Returns, Expenses, Reports, Settings`);
+  console.log(`✅ Chemist Shop Management API running on http://localhost:${PORT}`);
+  console.log(`💊 Routers Active: Platform, Auth, Medicines, Batches, Suppliers, Purchases, POS, Customers, Prescriptions, Returns, Expenses, Reports, Settings`);
 });
 
 server.on('error', (err) => {

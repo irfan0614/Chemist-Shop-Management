@@ -83,8 +83,8 @@ export function DataTable({
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
+        <div className="relative w-full sm:w-72 md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -97,7 +97,7 @@ export function DataTable({
             }}
           />
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
           <button
             onClick={handleExportCSV}
             className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-sm transition-colors"
@@ -110,8 +110,8 @@ export function DataTable({
       </div>
 
       {/* Table Container */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden overflow-x-auto w-full">
+        <table className="w-full text-left text-xs border-collapse min-w-[600px] sm:min-w-full">
           <thead>
             <tr className="bg-slate-50/75 border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-500">
               {columns.map((col) => (
@@ -158,7 +158,7 @@ export function DataTable({
         </table>
 
         {/* Pagination Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-500 text-center sm:text-left">
           <div>
             Showing <span className="font-semibold text-slate-800">{sortedData.length === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{' '}
             <span className="font-semibold text-slate-800">{Math.min(page * pageSize, sortedData.length)}</span> of{' '}

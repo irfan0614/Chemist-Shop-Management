@@ -20,11 +20,19 @@ import {
   Cross,
   Building2,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
 
-export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
+export function Sidebar({
+  currentView,
+  setView,
+  collapsed,
+  setCollapsed,
+  mobileOpen = false,
+  onCloseMobile,
+}) {
   const { user, hasRole, isSuperAdmin } = useAuth();
   const { settings } = useShop();
 
@@ -87,11 +95,18 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
     },
   ];
 
+  const handleItemClick = (key) => {
+    setView(key);
+    if (onCloseMobile) onCloseMobile();
+  };
+
   return (
     <aside
-      className={`shrink-0 bg-slate-950 text-slate-300 flex flex-col transition-all duration-300 z-30 print:hidden ${
-        collapsed ? 'w-20' : 'w-64'
-      }`}
+      className={`fixed inset-y-0 left-0 z-50 md:static md:z-30 shrink-0 bg-slate-950 text-slate-300 flex flex-col transition-all duration-300 print:hidden shadow-2xl md:shadow-none ${
+        mobileOpen
+          ? 'translate-x-0 w-72 max-w-[85vw]'
+          : '-translate-x-full md:translate-x-0'
+      } ${collapsed ? 'md:w-20' : 'md:w-64'}`}
     >
       {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80 bg-slate-950">
@@ -99,7 +114,7 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-950/40">
             <Plus className="w-6 h-6 text-white" strokeWidth={3} />
           </div>
-          {!collapsed && (
+          {(!collapsed || mobileOpen) && (
             <div className="min-w-0">
               <h1 className="font-extrabold text-sm text-white truncate tracking-tight">
                 {isSuperAdmin ? 'MedCloud Platform' : settings.shop_name || 'Apollo Chemist'}
@@ -119,9 +134,20 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
             </div>
           )}
         </div>
+
+        {/* Mobile Close Button (md:hidden) */}
+        <button
+          onClick={onCloseMobile}
+          className="md:hidden w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          title="Close Navigation"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {/* Desktop Collapse Toggle (hidden md:flex) */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="hidden md:flex w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -129,15 +155,15 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-5 custom-scrollbar">
         {menuSections.map((section, sIdx) => {
           const visibleItems = section.items.filter((item) => hasRole(item.roles));
           if (visibleItems.length === 0) return null;
 
           return (
             <div key={sIdx} className="space-y-1">
-              {!collapsed && (
-                <div className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              {(!collapsed || mobileOpen) && (
+                <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                   {section.title}
                 </div>
               )}
@@ -149,7 +175,7 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
                 return (
                   <button
                     key={item.key}
-                    onClick={() => setView(item.key)}
+                    onClick={() => handleItemClick(item.key)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group relative ${
                       isActive
                         ? isPlatformItem
@@ -161,7 +187,7 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
                         ? 'bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30'
                         : 'text-slate-300 hover:bg-slate-900 hover:text-white'
                     }`}
-                    title={collapsed ? item.label : undefined}
+                    title={collapsed && !mobileOpen ? item.label : undefined}
                   >
                     <Icon
                       className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
@@ -174,8 +200,8 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
                           : 'text-slate-400'
                       }`}
                     />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
-                    {!collapsed && item.badge && (
+                    {(!collapsed || mobileOpen) && <span className="truncate">{item.label}</span>}
+                    {(!collapsed || mobileOpen) && item.badge && (
                       <span
                         className={`ml-auto text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
                           isActive
@@ -198,7 +224,7 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
 
       {/* Footer Info */}
       <div className="p-3 border-t border-slate-900 bg-slate-950 text-[11px] text-slate-300">
-        {!collapsed ? (
+        {(!collapsed || mobileOpen) ? (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-slate-300">
               <span>GSTIN:</span>

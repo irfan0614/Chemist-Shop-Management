@@ -400,12 +400,14 @@ export function POSBillingPage() {
     }
   };
 
+  const [mobileTab, setMobileTab] = useState('catalog'); // 'catalog' | 'cart'
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-16 lg:pb-0">
       {/* POS Top Bar & Parked Bills */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold shrink-0">
             <Receipt className="w-5 h-5" />
           </div>
           <div>
@@ -415,17 +417,17 @@ export function POSBillingPage() {
         </div>
 
         {/* Parked / Held Bills Queue */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           {heldBills.length > 0 && (
             <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl text-xs font-semibold text-amber-800">
-              <PauseCircle className="w-4 h-4 text-amber-600" />
-              <span>{heldBills.length} Parked Bill{heldBills.length > 1 ? 's' : ''}:</span>
-              <div className="flex gap-1">
+              <PauseCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{heldBills.length} Held:</span>
+              <div className="flex gap-1 overflow-x-auto max-w-[150px]">
                 {heldBills.map((h) => (
                   <button
                     key={h.id}
                     onClick={() => handleResumeBill(h.id)}
-                    className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-bold"
+                    className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-bold shrink-0"
                   >
                     Resume {h.customerName || 'Walk-in'}
                   </button>
@@ -437,7 +439,7 @@ export function POSBillingPage() {
           <button
             onClick={handleHoldBill}
             disabled={cart.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold disabled:opacity-40 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold disabled:opacity-40 transition-colors shrink-0"
             title="Park Bill (F8)"
           >
             <PauseCircle className="w-4 h-4 text-slate-500" />
@@ -446,10 +448,36 @@ export function POSBillingPage() {
         </div>
       </div>
 
+      {/* Mobile Tab Switcher (Visible only on < lg screens) */}
+      <div className="lg:hidden flex p-1 bg-slate-200/80 rounded-2xl">
+        <button
+          onClick={() => setMobileTab('catalog')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'catalog'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Search className="w-4 h-4 text-emerald-600" />
+          <span>Medicine Catalog & Patient</span>
+        </button>
+        <button
+          onClick={() => setMobileTab('cart')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            mobileTab === 'cart'
+              ? 'bg-white text-emerald-900 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Receipt className="w-4 h-4 text-emerald-600" />
+          <span>Cart ({cart.length}) · {fmtMoney(grandTotal)}</span>
+        </button>
+      </div>
+
       {/* Main Billing Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Left Column: Search & Catalog Picker (7 cols) */}
-        <div className="lg:col-span-7 space-y-4">
+        <div className={`lg:col-span-7 space-y-4 ${mobileTab === 'catalog' ? 'block' : 'hidden lg:block'}`}>
           {/* Medicine Search Box */}
           <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm space-y-3">
             <div className="relative">
@@ -572,7 +600,7 @@ export function POSBillingPage() {
             </div>
 
             {/* Regular Customers Quick Picker */}
-            <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto text-[11px]">
+            <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
               <span className="text-slate-400 font-semibold shrink-0">Quick Pick:</span>
               {customers.slice(0, 4).map((c) => (
                 <button
@@ -592,7 +620,7 @@ export function POSBillingPage() {
         </div>
 
         {/* Right Column: Billing Cart & Summary (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className={`lg:col-span-5 space-y-4 ${mobileTab === 'cart' ? 'block' : 'hidden lg:block'}`}>
           <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
@@ -745,6 +773,45 @@ export function POSBillingPage() {
           </div>
         </div>
       </div>
+
+      {/* Sticky Mobile Checkout Bar (Visible on < lg when cart has items) */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 text-white p-3 z-30 lg:hidden shadow-2xl flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
+              {cart.length} Item{cart.length > 1 ? 's' : ''} in cart
+            </div>
+            <div className="text-base font-black font-mono text-emerald-400 leading-tight">
+              {fmtMoney(grandTotal)}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {mobileTab === 'catalog' ? (
+              <button
+                onClick={() => setMobileTab('cart')}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors"
+              >
+                View Cart
+              </button>
+            ) : (
+              <button
+                onClick={() => setMobileTab('catalog')}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors"
+              >
+                + Add More
+              </button>
+            )}
+            <button
+              disabled={processing}
+              onClick={() => setIsPaymentModalOpen(true)}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-950/50 flex items-center gap-1.5"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Checkout</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Batch Selection Modal (FEFO / Specific Batch) */}
       <Modal

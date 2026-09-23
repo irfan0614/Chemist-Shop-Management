@@ -30,6 +30,7 @@ function MainLayout() {
   const { settings, lastPrintedInvoice, printFormat } = useShop();
   const [currentView, setView] = useState(() => (isSuperAdmin ? 'platform' : 'dashboard'));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   useEffect(() => {
@@ -38,6 +39,12 @@ function MainLayout() {
     }
   }, [isSuperAdmin]);
 
+  // Handle route change with auto-closing mobile drawer
+  const handleSetView = (view) => {
+    setView(view);
+    setMobileDrawerOpen(false);
+  };
+
   if (!user) {
     return <LoginPage />;
   }
@@ -45,27 +52,40 @@ function MainLayout() {
   return (
     <>
       {/* Interactive App Shell (Hidden when printing) */}
-      <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-800 print:hidden">
-        {/* Collapsible Sidebar */}
+      <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-800 print:hidden relative">
+        {/* Mobile Backdrop Overlay */}
+        {mobileDrawerOpen && (
+          <div
+            onClick={() => setMobileDrawerOpen(false)}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
+            aria-hidden="true"
+          />
+        )}
+
+        {/* Sidebar (Desktop Persistent / Mobile Drawer) */}
         <Sidebar
           currentView={currentView}
-          setView={setView}
+          setView={handleSetView}
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
+          mobileOpen={mobileDrawerOpen}
+          onCloseMobile={() => setMobileDrawerOpen(false)}
         />
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Topbar Header */}
           <Header
-            setView={setView}
+            setView={handleSetView}
             onOpenShortcuts={() => setIsShortcutsOpen(true)}
+            onToggleMobileMenu={() => setMobileDrawerOpen((prev) => !prev)}
+            mobileDrawerOpen={mobileDrawerOpen}
           />
 
           {/* Scrollable View Container */}
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6">
             {currentView === 'platform' && <PlatformAdminPage />}
-            {currentView === 'dashboard' && <DashboardPage setView={setView} />}
+            {currentView === 'dashboard' && <DashboardPage setView={handleSetView} />}
             {currentView === 'pos' && <POSBillingPage />}
             {currentView === 'medicines' && <MedicinesPage />}
             {currentView === 'batches' && <BatchesPage />}

@@ -34,7 +34,7 @@ try {
   console.warn('PostgreSQL initialization warning:', e.message);
 }
 
-// In-Memory store fallback for Multi-Tenant Medical Shop Management System
+// In-Memory store fallback for Medical Shop Management System
 const memStore = {
   shops: [
     {

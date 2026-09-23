@@ -105,7 +105,7 @@ export function ReportsPage() {
           <p className="text-xs text-slate-400">GSTR-1 tax rate summaries, HSN code breakdowns, and profit margins</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex p-1 bg-slate-100 rounded-xl">
             <button
               onClick={() => setActiveTab('gst')}
@@ -130,12 +130,12 @@ export function ReportsPage() {
       {/* Tax Report Data */}
       {activeTab === 'gst' ? (
         <div className="space-y-4">
-          <div className="bg-emerald-900 text-white rounded-2xl p-5 shadow-sm flex items-center justify-between">
+          <div className="bg-emerald-900 text-white rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <div className="text-xs uppercase tracking-wider text-emerald-300 font-bold">Total Sales Turnover</div>
-              <div className="text-2xl font-black font-mono tracking-tight mt-1">{fmtMoney(gstData.totalSales || 0)}</div>
+              <div className="text-xl sm:text-2xl font-black font-mono tracking-tight mt-1">{fmtMoney(gstData.totalSales || 0)}</div>
             </div>
-            <div className="text-right font-mono text-xs text-emerald-200">
+            <div className="text-left sm:text-right font-mono text-xs text-emerald-200">
               {gstData.totalInvoices || 0} Invoices Generated
             </div>
           </div>

@@ -161,7 +161,7 @@ export function UsersPage() {
           <p className="text-xs text-slate-400">Manage medical shop owner credentials and tamper-evident audit logs</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex p-1 bg-slate-100 rounded-xl">
             <button
               onClick={() => setActiveTab('users')}
@@ -252,7 +252,7 @@ export function UsersPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">System Role</label>
               <input

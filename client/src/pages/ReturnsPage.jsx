@@ -175,7 +175,7 @@ export function ReturnsPage() {
           <p className="text-xs text-slate-400">Manage patient medicine returns, refunds, supplier returns, and expiry write-offs</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex p-1 bg-slate-100 rounded-xl">
             <button
               onClick={() => setActiveTab('sales')}
@@ -238,7 +238,7 @@ export function ReturnsPage() {
       >
         <div className="space-y-4 text-xs">
           {/* Lookup Input */}
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none"
@@ -264,45 +264,47 @@ export function ReturnsPage() {
                 <div>Patient: <strong>{foundInvoice.customer_name || 'Walk-in'}</strong></div>
               </div>
 
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-[10px] font-bold uppercase text-slate-500 border-b border-slate-200">
-                    <th className="py-1">Medicine (Batch)</th>
-                    <th className="text-center">Sold Qty</th>
-                    <th className="text-right">Unit Rate</th>
-                    <th className="text-center w-28">Return Qty</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {(foundInvoice.items || []).map((it) => {
-                    const key = `${it.medicineId}_${it.batchId}`;
-                    return (
-                      <tr key={key}>
-                        <td className="py-2">
-                          <div className="font-bold text-slate-900">{it.medicineName}</div>
-                          <div className="text-[10px] font-mono text-slate-400">Batch: {it.batchNo}</div>
-                        </td>
-                        <td className="text-center font-mono font-bold">{it.qty}</td>
-                        <td className="text-right font-mono">{fmtMoney(it.unitPrice)}</td>
-                        <td className="text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max={it.qty}
-                            className="w-16 px-2 py-1 bg-white border border-slate-300 rounded-lg text-center font-mono font-bold"
-                            value={returnItems[key] || 0}
-                            onChange={(e) =>
-                              setReturnItems({ ...returnItems, [key]: Math.min(it.qty, parseInt(e.target.value) || 0) })
-                            }
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[500px]">
+                  <thead>
+                    <tr className="text-[10px] font-bold uppercase text-slate-500 border-b border-slate-200">
+                      <th className="py-1">Medicine (Batch)</th>
+                      <th className="text-center">Sold Qty</th>
+                      <th className="text-right">Unit Rate</th>
+                      <th className="text-center w-28">Return Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {(foundInvoice.items || []).map((it) => {
+                      const key = `${it.medicineId}_${it.batchId}`;
+                      return (
+                        <tr key={key}>
+                          <td className="py-2">
+                            <div className="font-bold text-slate-900">{it.medicineName}</div>
+                            <div className="text-[10px] font-mono text-slate-400">Batch: {it.batchNo}</div>
+                          </td>
+                          <td className="text-center font-mono font-bold">{it.qty}</td>
+                          <td className="text-right font-mono">{fmtMoney(it.unitPrice)}</td>
+                          <td className="text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max={it.qty}
+                              className="w-16 px-2 py-1 bg-white border border-slate-300 rounded-lg text-center font-mono font-bold"
+                              value={returnItems[key] || 0}
+                              onChange={(e) =>
+                                setReturnItems({ ...returnItems, [key]: Math.min(it.qty, parseInt(e.target.value) || 0) })
+                              }
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">Refund Method</label>
                   <select

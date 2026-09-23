@@ -260,7 +260,7 @@ export function PurchasesPage() {
       >
         <div className="space-y-4 text-xs">
           {/* Supplier Header Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Select Supplier *</label>
               <select
@@ -501,7 +501,7 @@ export function PurchasesPage() {
         maxWidth="max-w-3xl"
       >
         <div className="space-y-4 text-xs font-mono">
-          <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border">
             <div><span className="text-slate-400 block text-[10px]">Purchase Date</span><strong>{fmtDate(viewInvoice?.purchaseDate)}</strong></div>
             <div><span className="text-slate-400 block text-[10px]">Total Amount</span><strong>{fmtMoney(viewInvoice?.totalAmount)}</strong></div>
             <div><span className="text-slate-400 block text-[10px]">Paid Amount</span><strong>{fmtMoney(viewInvoice?.paidAmount)}</strong></div>

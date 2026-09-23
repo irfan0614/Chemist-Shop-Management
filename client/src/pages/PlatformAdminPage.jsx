@@ -239,10 +239,10 @@ export function PlatformAdminPage({ onSwitchShop }) {
             <span>Platform Super Admin Portal</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            Medical Shop Multi-Tenant Management
+            Medical Shop & Pharmacy Management
           </h1>
           <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-            Manage all registered medical stores, pharmacies, drug licenses, subscription plans, and tenant owner credentials across India.
+            Manage all registered medical stores, pharmacies, drug licenses, subscription plans, and shop owner credentials.
           </p>
         </div>
 
@@ -370,7 +370,7 @@ export function PlatformAdminPage({ onSwitchShop }) {
       {/* Shops Table */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs min-w-[750px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <th className="py-3.5 px-4">Medical Shop Details</th>
@@ -549,21 +549,21 @@ export function PlatformAdminPage({ onSwitchShop }) {
 
       {/* Modal: Register New Medical Shop */}
       {isRegisterOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-6">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full my-auto max-h-[92vh] sm:max-h-[88vh] overflow-y-auto p-4 sm:p-6 md:p-8 shadow-2xl border border-slate-100 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <Store className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Register New Medical Shop</h2>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900">Register New Medical Shop</h2>
                   <p className="text-xs text-slate-500">Create medical outlet profile and establish owner credentials</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsRegisterOpen(false)}
-                className="w-8 h-8 rounded-xl bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center"
+                className="w-8 h-8 rounded-xl bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center shrink-0"
               >
                 ✕
               </button>
@@ -776,21 +776,23 @@ export function PlatformAdminPage({ onSwitchShop }) {
 
       {/* Modal: Edit Medical Store */}
       {isEditOpen && selectedShop && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-6">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full my-auto max-h-[92vh] sm:max-h-[88vh] overflow-y-auto p-4 sm:p-6 md:p-8 shadow-2xl border border-slate-100 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                   <Edit3 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Edit {selectedShop.name}</h2>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 truncate max-w-[200px] sm:max-w-[350px]">
+                    Edit {selectedShop.name}
+                  </h2>
                   <p className="text-xs text-slate-500">Update medical store profile and subscription settings</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsEditOpen(false)}
-                className="w-8 h-8 rounded-xl bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center"
+                className="w-8 h-8 rounded-xl bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center shrink-0"
               >
                 ✕
               </button>
@@ -890,16 +892,26 @@ export function PlatformAdminPage({ onSwitchShop }) {
 
       {/* Modal: Reset Owner Password */}
       {isPasswordModalOpen && selectedShop && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                <KeyRound className="w-5 h-5" />
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full my-auto max-h-[92vh] sm:max-h-[88vh] overflow-y-auto p-4 sm:p-6 md:p-8 shadow-2xl border border-slate-100 space-y-5">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-black text-slate-900">Reset Owner Password</h2>
+                  <p className="text-xs text-slate-500 truncate max-w-[220px]">
+                    {selectedShop.name} ({selectedShop.owner_email})
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-base font-black text-slate-900">Reset Owner Password</h2>
-                <p className="text-xs text-slate-500">{selectedShop.name} ({selectedShop.owner_email})</p>
-              </div>
+              <button
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center shrink-0"
+              >
+                ✕
+              </button>
             </div>
 
             <form onSubmit={handleResetPassword} className="space-y-4 text-xs">
@@ -927,9 +939,9 @@ export function PlatformAdminPage({ onSwitchShop }) {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md shadow-amber-900/30"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md shadow-amber-950/20"
                 >
-                  Update Password
+                  Reset Password
                 </button>
               </div>
             </form>

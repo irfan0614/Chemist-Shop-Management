@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- 001_multi_tenant_migration.sql
--- Safe, Idempotent Multi-Tenant Architecture Migration for Medical Shops
+-- Safe, Idempotent Database Migration for Medical Shops
 -- ==============================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

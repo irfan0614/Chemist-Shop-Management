@@ -111,36 +111,36 @@ export function DashboardPage({ setView }) {
       })()}
 
       {/* Top Banner & Quick Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-900 to-teal-900 text-white rounded-3xl p-6 shadow-xl shadow-emerald-950/10 relative overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-900 to-teal-900 text-white rounded-3xl p-4 sm:p-6 shadow-xl shadow-emerald-950/10 relative overflow-hidden">
         <div className="relative z-10 space-y-1">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-emerald-500/30">
             Store Operations Overview
           </div>
-          <h1 className="text-2xl font-black tracking-tight">Pharmacy Daily Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight">Pharmacy Daily Dashboard</h1>
           <p className="text-xs text-emerald-100/70 max-w-xl">
             Real-time monitoring of counter sales, batch-wise inventory, drug compliance, and supplier payables.
           </p>
         </div>
 
         {/* Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 relative z-10">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 relative z-10">
           <button
             onClick={() => setView('pos')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold rounded-xl text-xs shadow-lg shadow-emerald-950/40 transition-transform active:scale-95"
+            className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold rounded-xl text-xs shadow-lg shadow-emerald-950/40 transition-transform active:scale-95"
           >
             <Receipt className="w-4 h-4" />
             <span>Fast POS Bill (F2)</span>
           </button>
           <button
             onClick={() => setView('purchases')}
-            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs backdrop-blur-sm border border-white/10 transition-colors"
+            className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs backdrop-blur-sm border border-white/10 transition-colors"
           >
             <ShoppingBag className="w-4 h-4 text-emerald-300" />
             <span>Inward Purchase</span>
           </button>
           <button
             onClick={() => setView('medicines')}
-            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs backdrop-blur-sm border border-white/10 transition-colors"
+            className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs backdrop-blur-sm border border-white/10 transition-colors"
           >
             <Plus className="w-4 h-4 text-emerald-300" />
             <span>Add Medicine</span>
@@ -152,7 +152,7 @@ export function DashboardPage({ setView }) {
       </div>
 
       {/* KPI Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="Today's Sales"
           value={fmtMoney(d.todaysSales)}
@@ -188,7 +188,7 @@ export function DashboardPage({ setView }) {
       </div>
 
       {/* Secondary Financial & Inventory Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Payment Modes Today */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-3">
           <div className="flex items-center justify-between">

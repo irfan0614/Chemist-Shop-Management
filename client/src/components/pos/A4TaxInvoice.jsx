@@ -80,40 +80,42 @@ export function A4TaxInvoice({ invoice, settings, preview = false }) {
       </div>
 
       {/* Medicine Items Table */}
-      <table className="w-full text-xs border border-black/80 mb-3 border-collapse">
-        <thead>
-          <tr className="bg-slate-200 border-b border-black font-bold text-black text-left">
-            <th className="p-1.5 border-r border-black/60 w-8 text-center">#</th>
-            <th className="p-1.5 border-r border-black/60">Description of Goods</th>
-            <th className="p-1.5 border-r border-black/60 w-14">HSN</th>
-            <th className="p-1.5 border-r border-black/60 w-20">Batch</th>
-            <th className="p-1.5 border-r border-black/60 text-center w-16">Expiry</th>
-            <th className="p-1.5 border-r border-black/60 text-right w-12">Qty</th>
-            <th className="p-1.5 border-r border-black/60 text-right w-16">MRP</th>
-            <th className="p-1.5 border-r border-black/60 text-right w-16">Rate</th>
-            <th className="p-1.5 border-r border-black/60 text-right w-12">Disc%</th>
-            <th className="p-1.5 border-r border-black/60 text-right w-12">GST%</th>
-            <th className="p-1.5 text-right w-20">Amount (₹)</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-black/40">
-          {(invoice.items || []).map((it, idx) => (
-            <tr key={idx} className="font-mono hover:bg-slate-50">
-              <td className="p-1.5 border-r border-black/40 text-center font-sans">{idx + 1}</td>
-              <td className="p-1.5 border-r border-black/40 font-sans font-semibold">{it.medicineName}</td>
-              <td className="p-1.5 border-r border-black/40 text-slate-700">{it.hsnCode || '3004'}</td>
-              <td className="p-1.5 border-r border-black/40 font-bold">{it.batchNo}</td>
-              <td className="p-1.5 border-r border-black/40 text-center">{it.expiryDate?.slice(0, 7) || '—'}</td>
-              <td className="p-1.5 border-r border-black/40 text-right font-bold tabular-nums">{it.qty}</td>
-              <td className="p-1.5 border-r border-black/40 text-right tabular-nums">{fmtMoney(it.mrp)}</td>
-              <td className="p-1.5 border-r border-black/40 text-right tabular-nums">{fmtMoney(it.unitPrice)}</td>
-              <td className="p-1.5 border-r border-black/40 text-right tabular-nums">{it.discountPercent || 0}%</td>
-              <td className="p-1.5 border-r border-black/40 text-right tabular-nums">{it.gstRate || 12}%</td>
-              <td className="p-1.5 text-right font-bold tabular-nums">{fmtMoney(it.totalAmount)}</td>
+      <div className="overflow-x-auto w-full mb-3">
+        <table className="w-full text-xs border border-black/80 border-collapse min-w-[520px]">
+          <thead>
+            <tr className="bg-slate-200 border-b border-black font-bold text-black text-left">
+              <th className="p-1.5 border-r border-black/60 w-8 text-center">#</th>
+              <th className="p-1.5 border-r border-black/60">Description of Goods</th>
+              <th className="p-1.5 border-r border-black/60 w-14">HSN</th>
+              <th className="p-1.5 border-r border-black/60 w-20">Batch</th>
+              <th className="p-1.5 border-r border-black/60 text-center w-16">Expiry</th>
+              <th className="p-1.5 border-r border-black/60 text-right w-12">Qty</th>
+              <th className="p-1.5 border-r border-black/60 text-right w-16">MRP</th>
+              <th className="p-1.5 border-r border-black/60 text-right w-16">Rate</th>
+              <th className="p-1.5 border-r border-black/60 text-right w-12">Disc%</th>
+              <th className="p-1.5 border-r border-black/60 text-right w-12">GST%</th>
+              <th className="p-1.5 text-right w-20">Amount (₹)</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-black/40">
+            {(invoice.items || []).map((it, idx) => (
+              <tr key={idx} className="font-mono hover:bg-slate-50">
+                <td className="p-1.5 border-r border-black/40 text-center font-sans">{idx + 1}</td>
+                <td className="p-1.5 border-r border-black/40 font-sans font-semibold">{it.medicineName}</td>
+                <td className="p-1.5 border-r border-black/40 text-slate-700">{it.hsnCode || '3004'}</td>
+                <td className="p-1.5 border-r border-black/40 font-bold">{it.batchNo}</td>
+                <td className="p-1.5 border-r border-black/40 text-center">{it.expiryDate?.slice(0, 7) || '—'}</td>
+                <td className="p-1.5 border-r border-black/40 text-right font-bold tabular-nums">{it.qty}</td>
+                <td className="p-1.5 border-r border-black/40 text-right tabular-nums">{fmtMoney(it.mrp)}</td>
+                <td className="p-1.5 border-r border-black/40 text-right tabular-nums">{fmtMoney(it.unitPrice)}</td>
+                <td className="p-1.5 border-r border-black/40 text-right tabular-nums">{it.discountPercent || 0}%</td>
+                <td className="p-1.5 border-r border-black/40 text-right tabular-nums">{it.gstRate || 12}%</td>
+                <td className="p-1.5 text-right font-bold tabular-nums">{fmtMoney(it.totalAmount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* Summary & Tax Calculation Box */}
       <div className="grid grid-cols-2 gap-4 border border-black/80 rounded-md p-3 mb-4">

@@ -45,8 +45,8 @@ export function LoginPage() {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-500 via-teal-500 to-emerald-500 mx-auto flex items-center justify-center shadow-lg shadow-indigo-950/50">
             <Plus className="w-8 h-8 text-white" strokeWidth={3} />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">MedCloud Multi-Tenant ERP</h1>
-          <p className="text-xs text-slate-400">Multi-Shop Medical Store Management & Compliance Platform</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">MedCloud Pharmacy ERP</h1>
+          <p className="text-xs text-slate-400">Medical Store Management & Compliance Platform</p>
         </div>
 
         {/* Login Form */}

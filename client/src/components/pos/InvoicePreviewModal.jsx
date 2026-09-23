@@ -32,47 +32,47 @@ export function InvoicePreviewModal({ isOpen, onClose, invoice }) {
     >
       <div className="space-y-4">
         {/* Format Selector Bar & Action */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100 p-2.5 rounded-xl">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-600 mr-1">Preview Format:</span>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-100 p-2.5 rounded-xl">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-600 mr-1 hidden xs:inline">Preview:</span>
             <button
               onClick={() => setSelectedFormat('80mm')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 selectedFormat === '80mm'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
               }`}
             >
               <Receipt className="w-3.5 h-3.5" />
-              <span>80mm Thermal (3")</span>
+              <span>80mm</span>
             </button>
             <button
               onClick={() => setSelectedFormat('58mm')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 selectedFormat === '58mm'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
               }`}
             >
               <Receipt className="w-3.5 h-3.5" />
-              <span>58mm Thermal (2")</span>
+              <span>58mm</span>
             </button>
             <button
               onClick={() => setSelectedFormat('A4')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 selectedFormat === 'A4'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>A4 Full Invoice</span>
+              <span>A4 Sheet</span>
             </button>
           </div>
 
           <button
             onClick={handlePrint}
-            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-950/20 flex items-center gap-2 transition-all ml-auto"
+            className="w-full sm:w-auto justify-center px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-950/20 flex items-center gap-2 transition-all shrink-0"
           >
             <Printer className="w-4 h-4" />
             <span>Print {selectedFormat} Invoice</span>

@@ -179,7 +179,7 @@ export function PrescriptionsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           {/* Tab Switcher */}
           <div className="flex p-1 bg-slate-100 rounded-xl">
             <button

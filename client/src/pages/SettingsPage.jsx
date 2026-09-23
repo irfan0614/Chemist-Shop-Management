@@ -29,7 +29,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-4 max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
         <div>
           <h1 className="text-base font-extrabold text-slate-900">Shop Profile & Pharmacy Configuration</h1>
           <p className="text-xs text-slate-400">Drug License 20B/21B numbers, GSTIN, and printer customization</p>
@@ -37,7 +37,7 @@ export function SettingsPage() {
         <button
           disabled={saving}
           onClick={handleSave}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20 disabled:opacity-50 transition-all"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20 disabled:opacity-50 transition-all shrink-0"
         >
           <Save className="w-4 h-4" />
           <span>{saving ? 'Saving…' : 'Save Settings'}</span>
