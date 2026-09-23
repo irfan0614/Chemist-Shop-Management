@@ -1,0 +1,13 @@
+{
+  "name": "chemist-shop-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chemist Shop Management System (Medical Store ERP)",
+  "scripts": {
+    "dev": "npm --prefix client run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev:server": "npm --prefix server run dev",
+    "start": "npm --prefix server start",
+    "build": "npm --prefix client run build"
+  }
+}
