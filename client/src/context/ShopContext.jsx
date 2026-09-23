@@ -10,6 +10,9 @@ export function ShopProvider({ children }) {
     owner_name: 'Dr. Rajesh Sharma',
     dl_number_20b: 'DL-20B-129482',
     dl_number_21b: 'DL-21B-129483',
+    drug_license_expiry: '2028-12-31',
+    subscription_expiry: '2028-12-31',
+    plan: 'PRO',
     gstin: '07AAAAA0000A1Z5',
     fssai_no: '10019011000123',
     phone: '+91 98765 43210',
@@ -42,7 +45,12 @@ export function ShopProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    fetchSettings();
+    const token = localStorage.getItem('chemist_auth_token');
+    if (token) {
+      fetchSettings();
+    } else {
+      setLoading(false);
+    }
   }, [fetchSettings]);
 
   const updateSettings = async (payload) => {
@@ -63,6 +71,7 @@ export function ShopProvider({ children }) {
     <ShopContext.Provider
       value={{
         settings,
+        setSettings,
         updateSettings,
         fetchSettings,
         loading,
@@ -83,3 +92,4 @@ export function useShop() {
   if (!ctx) throw new Error('useShop must be used within a ShopProvider');
   return ctx;
 }
+

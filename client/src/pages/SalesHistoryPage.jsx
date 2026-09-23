@@ -4,9 +4,9 @@ import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useShop } from '../context/ShopContext';
 import { DataTable } from '../components/common/DataTable';
-import { Modal } from '../components/common/Modal';
 import { Badge } from '../components/common/Badge';
 import { fmtMoney, fmtDate } from '../utils/formatters';
+import { InvoicePreviewModal } from '../components/pos/InvoicePreviewModal';
 
 export function SalesHistoryPage() {
   const [bills, setBills] = useState([]);
@@ -89,14 +89,14 @@ export function SalesHistoryPage() {
           <button
             onClick={() => handleReprint(b)}
             className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-            title="Reprint Thermal Receipt"
+            title="Reprint Receipt"
           >
             <Printer className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setViewBill(b)}
             className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            title="View Details"
+            title="View & Print Preview"
           >
             <Eye className="w-3.5 h-3.5" />
           </button>
@@ -124,67 +124,12 @@ export function SalesHistoryPage() {
         exportFilename="sales_invoicing_history"
       />
 
-      {/* Invoice Detail Modal */}
-      <Modal
+      {/* Invoice Live Preview & Print Modal */}
+      <InvoicePreviewModal
         isOpen={!!viewBill}
         onClose={() => setViewBill(null)}
-        title={`Invoice #${viewBill?.invoice_no || ''}`}
-        subtitle={`Patient: ${viewBill?.customer_name || 'Walk-in'} · Date: ${fmtDate(viewBill?.invoice_date)}`}
-        maxWidth="max-w-2xl"
-      >
-        <div className="space-y-3 text-xs">
-          <table className="w-full text-left border border-slate-200 rounded-xl overflow-hidden">
-            <thead className="bg-slate-100 text-[10px] font-bold uppercase text-slate-600">
-              <tr>
-                <th className="p-2">Item</th>
-                <th className="p-2">Batch</th>
-                <th className="p-2 text-center">Qty</th>
-                <th className="p-2 text-right">Rate</th>
-                <th className="p-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-mono">
-              {(viewBill?.items || []).map((it, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="p-2 font-sans font-semibold">{it.medicineName}</td>
-                  <td className="p-2 text-slate-600">{it.batchNo}</td>
-                  <td className="p-2 text-center font-bold">{it.qty}</td>
-                  <td className="p-2 text-right">{fmtMoney(it.unitPrice)}</td>
-                  <td className="p-2 text-right font-bold">{fmtMoney(it.totalAmount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <div className="space-y-0.5">
-              <div>Payment Mode: <strong className="uppercase">{viewBill?.payment_mode}</strong></div>
-              <div>Prescribing Dr: <strong>{viewBill?.doctor_name || '—'}</strong></div>
-            </div>
-            <div className="text-right font-mono">
-              <div className="text-slate-400 text-[10px]">Net Grand Total</div>
-              <div className="text-lg font-black text-emerald-700">{fmtMoney(viewBill?.total_amount)}</div>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-            <button
-              onClick={() => handleReprint(viewBill, '80mm')}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center gap-1.5"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Thermal Receipt (80mm)</span>
-            </button>
-            <button
-              onClick={() => handleReprint(viewBill, 'A4')}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>A4 GST Tax Invoice</span>
-            </button>
-          </div>
-        </div>
-      </Modal>
+        invoice={viewBill}
+      />
     </div>
   );
 }

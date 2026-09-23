@@ -1,10 +1,10 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 function enrichMedicine(med) {
-  const batches = memStore.batches.filter((b) => b.medicine_id === med.id && !b.is_blocked);
+  const batches = memStore.batches.filter((b) => b.medicine_id === med.id && b.shop_id === med.shop_id && !b.is_blocked);
   const totalStock = batches.reduce((sum, b) => sum + (Number(b.current_stock) || 0), 0);
   const category = memStore.categories.find((c) => c.id === med.category_id);
 
@@ -42,10 +42,15 @@ function enrichMedicine(med) {
 }
 
 // GET /api/medicines
-router.get('/', (req, res) => {
+router.get('/', authMiddleware, (req, res) => {
   try {
+    const currentShopId = tenantShopId(req);
     const { search, category, schedule, prescription, inStock } = req.query;
     let list = memStore.medicines.filter((m) => m.is_active !== false);
+
+    if (currentShopId) {
+      list = list.filter((m) => m.shop_id === currentShopId);
+    }
 
     if (search) {
       const q = search.trim().toLowerCase();
@@ -85,20 +90,29 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/medicines/categories
-router.get('/categories', (req, res) => {
-  res.json(memStore.categories);
+router.get('/categories', authMiddleware, (req, res) => {
+  const currentShopId = tenantShopId(req);
+  let cats = memStore.categories;
+  if (currentShopId) {
+    cats = cats.filter((c) => !c.shop_id || c.shop_id === currentShopId);
+  }
+  res.json(cats);
 });
 
 // POST /api/medicines/categories
 router.post('/categories', authMiddleware, (req, res) => {
+  const currentShopId = tenantShopId(req) || '11111111-1111-1111-1111-111111111111';
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Category name is required' });
 
-  const existing = memStore.categories.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
+  const existing = memStore.categories.find(
+    (c) => (c.shop_id === currentShopId || !c.shop_id) && c.name.toLowerCase() === name.trim().toLowerCase()
+  );
   if (existing) return res.json(existing);
 
   const newCat = {
     id: `cat-${Date.now()}`,
+    shop_id: currentShopId,
     name: name.trim(),
     description: description || '',
   };
@@ -107,8 +121,11 @@ router.post('/categories', authMiddleware, (req, res) => {
 });
 
 // GET /api/medicines/:id
-router.get('/:id', (req, res) => {
-  const med = memStore.medicines.find((m) => m.id === req.params.id);
+router.get('/:id', authMiddleware, (req, res) => {
+  const currentShopId = tenantShopId(req);
+  const med = memStore.medicines.find(
+    (m) => m.id === req.params.id && (!currentShopId || m.shop_id === currentShopId)
+  );
   if (!med) return res.status(404).json({ error: 'Medicine not found' });
   res.json(enrichMedicine(med));
 });
@@ -144,20 +161,28 @@ router.post('/', authMiddleware, (req, res) => {
     rack_shelf,
   } = req.body;
 
+  const currentShopId = tenantShopId(req) || '11111111-1111-1111-1111-111111111111';
+
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Medicine name is required' });
   }
 
-  // Duplicate name check
+  // Duplicate name check within caller's shop
   const duplicate = memStore.medicines.find(
-    (m) => m.name.toLowerCase() === name.trim().toLowerCase() && m.strength === (strength || '')
+    (m) =>
+      m.shop_id === currentShopId &&
+      m.name.toLowerCase() === name.trim().toLowerCase() &&
+      m.strength === (strength || '')
   );
   if (duplicate) {
-    return res.status(400).json({ error: `Medicine "${name}" (${strength || 'Standard'}) already exists in master catalog.` });
+    return res.status(400).json({
+      error: `Medicine "${name}" (${strength || 'Standard'}) already exists in your pharmacy catalog.`,
+    });
   }
 
   const newMed = {
     id: `med-${Date.now()}`,
+    shop_id: currentShopId,
     name: name.trim(),
     generic_name: (generic_name || '').trim(),
     brand: (brand || '').trim(),
@@ -181,10 +206,11 @@ router.post('/', authMiddleware, (req, res) => {
 
   memStore.medicines.unshift(newMed);
 
-  // If initial batch details were provided, add batch directly
+  // If initial batch details were provided, add batch directly with shop_id
   if (batch_no && expiry_date) {
     const newBatch = {
       id: `b-${Date.now()}`,
+      shop_id: currentShopId,
       medicine_id: newMed.id,
       batch_no: batch_no.trim(),
       mfg_date: mfg_date || null,
@@ -195,6 +221,7 @@ router.post('/', authMiddleware, (req, res) => {
       current_stock: parseInt(initial_stock) || 0,
       rack_shelf: (rack_shelf || '').trim(),
       is_blocked: false,
+      created_at: new Date().toISOString(),
     };
     memStore.batches.push(newBatch);
   }
@@ -202,6 +229,7 @@ router.post('/', authMiddleware, (req, res) => {
   // Audit log
   memStore.audit_logs.unshift({
     id: `al-${Date.now()}`,
+    shop_id: currentShopId,
     user_id: req.user?.id,
     user_name: req.user?.name,
     action: 'CREATE_MEDICINE',

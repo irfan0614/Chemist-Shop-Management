@@ -1,22 +1,24 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/returns/sales
 router.get('/sales', (req, res) => {
-  res.json(memStore.sales_returns);
+  const shopId = tenantShopId(req);
+  res.json(memStore.sales_returns.filter((sr) => sr.shop_id === shopId));
 });
 
 // POST /api/returns/sales - Process customer sales return
-router.post('/sales', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'CASHIER']), (req, res) => {
+router.post('/sales', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'PHARMACIST', 'CASHIER']), (req, res) => {
+  const shopId = tenantShopId(req);
   const { invoiceNo, items, refundMode = 'CASH', reason } = req.body;
 
   if (!invoiceNo || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Invoice number and returned items are required' });
   }
 
-  const invoice = memStore.sales_invoices.find((inv) => inv.invoice_no === invoiceNo.trim());
+  const invoice = memStore.sales_invoices.find((inv) => inv.shop_id === shopId && inv.invoice_no === invoiceNo.trim());
   if (!invoice) return res.status(404).json({ error: `Original invoice "${invoiceNo}" not found` });
 
   let totalRefund = 0;
@@ -39,7 +41,7 @@ router.post('/sales', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'CASHI
 
     // Restock batch if condition is good
     if (it.restockCondition !== 'DAMAGED_WRITE_OFF') {
-      const batch = memStore.batches.find((b) => b.id === origItem.batchId);
+      const batch = memStore.batches.find((b) => b.shop_id === shopId && b.id === origItem.batchId);
       if (batch) {
         batch.current_stock += returnQty;
       }
@@ -63,6 +65,7 @@ router.post('/sales', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'CASHI
 
   const salesReturn = {
     id: `ret-${Date.now()}`,
+    shop_id: shopId,
     return_no: returnNo,
     invoice_id: invoice.id,
     invoice_no: invoice.invoice_no,
@@ -82,7 +85,7 @@ router.post('/sales', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'CASHI
   // If cash refund, update cash register
   if (refundMode === 'CASH') {
     const todayRegister = memStore.cash_registers.find(
-      (cr) => cr.register_date === new Date().toISOString().slice(0, 10) && cr.status === 'OPEN'
+      (cr) => cr.shop_id === shopId && cr.register_date === new Date().toISOString().slice(0, 10) && cr.status === 'OPEN'
     );
     if (todayRegister) {
       todayRegister.cash_returns += totalRefund;
@@ -93,6 +96,7 @@ router.post('/sales', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'CASHI
   // Audit log
   memStore.audit_logs.unshift({
     id: `al-${Date.now()}`,
+    shop_id: shopId,
     user_id: req.user?.id,
     user_name: req.user?.name,
     action: 'SALES_RETURN',
@@ -107,28 +111,30 @@ router.post('/sales', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'CASHI
 
 // GET /api/returns/purchases
 router.get('/purchases', (req, res) => {
-  res.json(memStore.purchase_returns);
+  const shopId = tenantShopId(req);
+  res.json(memStore.purchase_returns.filter((pr) => pr.shop_id === shopId));
 });
 
 // POST /api/returns/purchases - Return damaged/expired medicines to supplier (Debit Note)
-router.post('/purchases', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR']), (req, res) => {
+router.post('/purchases', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'INVENTORY_MGR']), (req, res) => {
+  const shopId = tenantShopId(req);
   const { supplierId, items, reason } = req.body;
 
   if (!supplierId || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Supplier and items to return are required' });
   }
 
-  const supplier = memStore.suppliers.find((s) => s.id === supplierId);
+  const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === supplierId);
   if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
 
   let totalDebitAmount = 0;
   const processedItems = [];
 
   for (const it of items) {
-    const batch = memStore.batches.find((b) => b.id === it.batchId);
+    const batch = memStore.batches.find((b) => b.shop_id === shopId && b.id === it.batchId);
     if (!batch) return res.status(400).json({ error: `Batch not found: ${it.batchId}` });
 
-    const med = memStore.medicines.find((m) => m.id === batch.medicine_id);
+    const med = memStore.medicines.find((m) => m.shop_id === shopId && m.id === batch.medicine_id);
     const returnQty = parseInt(it.returnQty) || 0;
     if (returnQty <= 0 || returnQty > batch.current_stock) {
       return res.status(400).json({ error: `Cannot return ${returnQty} for batch ${batch.batch_no}. Available stock: ${batch.current_stock}` });
@@ -157,6 +163,7 @@ router.post('/purchases', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR']
 
   const purchReturn = {
     id: `pret-${Date.now()}`,
+    shop_id: shopId,
     return_no: `PRT-${Date.now().toString().slice(-4)}`,
     supplier_id: supplier.id,
     supplier_name: supplier.company_name || supplier.name,

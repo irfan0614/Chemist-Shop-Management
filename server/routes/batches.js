@@ -1,6 +1,6 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 function getDaysUntil(dateStr) {
@@ -20,11 +20,16 @@ function getBatchStatus(expiryDate, currentStock, reorderLevel = 15) {
   return { status, daysLeft: days, isLowStock };
 }
 
-// GET /api/batches - List all batches with filters
-router.get('/', (req, res) => {
+// GET /api/batches - List all batches with filters (Tenant Scoped)
+router.get('/', authMiddleware, (req, res) => {
   try {
+    const currentShopId = tenantShopId(req);
     const { medicineId, search, status, rack } = req.query;
-    let list = [...memStore.batches];
+    let list = memStore.batches;
+
+    if (currentShopId) {
+      list = list.filter((b) => b.shop_id === currentShopId);
+    }
 
     if (medicineId) {
       list = list.filter((b) => b.medicine_id === medicineId);
@@ -35,7 +40,7 @@ router.get('/', (req, res) => {
     }
 
     let enriched = list.map((b) => {
-      const med = memStore.medicines.find((m) => m.id === b.medicine_id) || {};
+      const med = memStore.medicines.find((m) => m.id === b.medicine_id && (!currentShopId || m.shop_id === currentShopId)) || {};
       const { status: expStatus, daysLeft, isLowStock } = getBatchStatus(b.expiry_date, b.current_stock, med.reorder_level);
       return {
         id: b.id,
@@ -93,10 +98,17 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/batches/fefo/:medicineId - Get FEFO batches for POS
-router.get('/fefo/:medicineId', (req, res) => {
+router.get('/fefo/:medicineId', authMiddleware, (req, res) => {
+  const currentShopId = tenantShopId(req);
   const { medicineId } = req.params;
   const batches = memStore.batches
-    .filter((b) => b.medicine_id === medicineId && !b.is_blocked && Number(b.current_stock) > 0)
+    .filter(
+      (b) =>
+        b.medicine_id === medicineId &&
+        (!currentShopId || b.shop_id === currentShopId) &&
+        !b.is_blocked &&
+        Number(b.current_stock) > 0
+    )
     .map((b) => {
       const days = getDaysUntil(b.expiry_date);
       return {

@@ -1,12 +1,13 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/customers
 router.get('/', (req, res) => {
+  const shopId = tenantShopId(req);
   const { search, type, hasBalance } = req.query;
-  let list = memStore.customers.filter((c) => c.is_active !== false);
+  let list = memStore.customers.filter((c) => (c.shop_id === shopId || c.id === 'cust-walkin') && c.is_active !== false);
 
   if (search) {
     const q = search.trim().toLowerCase();
@@ -22,10 +23,11 @@ router.get('/', (req, res) => {
   if (hasBalance === 'true') list = list.filter((c) => Number(c.current_balance) > 0);
 
   const enriched = list.map((c) => {
-    const bills = memStore.sales_invoices.filter((b) => b.customer_id === c.id);
+    const bills = memStore.sales_invoices.filter((b) => b.shop_id === shopId && b.customer_id === c.id);
     const totalSpent = bills.reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
     return {
       id: c.id,
+      shopId: c.shop_id,
       name: c.name,
       phone: c.phone,
       email: c.email,
@@ -49,11 +51,12 @@ router.get('/', (req, res) => {
 
 // GET /api/customers/:id
 router.get('/:id', (req, res) => {
-  const c = memStore.customers.find((cust) => cust.id === req.params.id);
+  const shopId = tenantShopId(req);
+  const c = memStore.customers.find((cust) => (cust.shop_id === shopId || cust.id === 'cust-walkin') && cust.id === req.params.id);
   if (!c) return res.status(404).json({ error: 'Customer not found' });
 
-  const bills = memStore.sales_invoices.filter((b) => b.customer_id === c.id);
-  const prescriptions = memStore.prescriptions.filter((p) => p.customer_id === c.id);
+  const bills = memStore.sales_invoices.filter((b) => b.shop_id === shopId && b.customer_id === c.id);
+  const prescriptions = memStore.prescriptions.filter((p) => p.shop_id === shopId && p.customer_id === c.id);
 
   res.json({
     ...c,
@@ -64,19 +67,21 @@ router.get('/:id', (req, res) => {
 
 // POST /api/customers
 router.post('/', authMiddleware, (req, res) => {
+  const shopId = tenantShopId(req);
   const { name, phone, email, address, preferredDoctor, creditLimit, customerType, discountPercent } = req.body;
 
   if (!name || !phone) {
     return res.status(400).json({ error: 'Customer name and phone are required' });
   }
 
-  const existing = memStore.customers.find((c) => c.phone === phone.trim() && c.id !== 'cust-walkin');
+  const existing = memStore.customers.find((c) => c.shop_id === shopId && c.phone === phone.trim() && c.id !== 'cust-walkin');
   if (existing) {
     return res.status(400).json({ error: `Customer with phone ${phone} already exists (${existing.name})` });
   }
 
   const newCust = {
     id: `cust-${Date.now()}`,
+    shop_id: shopId,
     name: name.trim(),
     phone: phone.trim(),
     email: (email || '').trim(),
@@ -100,7 +105,8 @@ router.post('/', authMiddleware, (req, res) => {
 
 // PUT /api/customers/:id
 router.put('/:id', authMiddleware, (req, res) => {
-  const c = memStore.customers.find((cust) => cust.id === req.params.id);
+  const shopId = tenantShopId(req);
+  const c = memStore.customers.find((cust) => cust.shop_id === shopId && cust.id === req.params.id);
   if (!c) return res.status(404).json({ error: 'Customer not found' });
 
   const { name, phone, email, address, preferredDoctor, creditLimit, customerType, discountPercent } = req.body;
@@ -120,7 +126,8 @@ router.put('/:id', authMiddleware, (req, res) => {
 
 // POST /api/customers/:id/collect-payment - Collect outstanding Khata balance
 router.post('/:id/collect-payment', authMiddleware, (req, res) => {
-  const customer = memStore.customers.find((c) => c.id === req.params.id);
+  const shopId = tenantShopId(req);
+  const customer = memStore.customers.find((c) => c.shop_id === shopId && c.id === req.params.id);
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
   const { amount, paymentMode = 'CASH', referenceNo, notes } = req.body;
@@ -136,7 +143,7 @@ router.post('/:id/collect-payment', authMiddleware, (req, res) => {
   // If cash, update drawer
   if (paymentMode === 'CASH') {
     const todayRegister = memStore.cash_registers.find(
-      (cr) => cr.register_date === new Date().toISOString().slice(0, 10) && cr.status === 'OPEN'
+      (cr) => cr.shop_id === shopId && cr.register_date === new Date().toISOString().slice(0, 10) && cr.status === 'OPEN'
     );
     if (todayRegister) {
       todayRegister.customer_cash_in += numAmount;
@@ -147,6 +154,7 @@ router.post('/:id/collect-payment', authMiddleware, (req, res) => {
   // Audit log
   memStore.audit_logs.unshift({
     id: `al-${Date.now()}`,
+    shop_id: shopId,
     user_id: req.user?.id,
     user_name: req.user?.name,
     action: 'CUSTOMER_PAYMENT',

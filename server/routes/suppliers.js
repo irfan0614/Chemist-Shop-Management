@@ -1,12 +1,13 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/suppliers
 router.get('/', (req, res) => {
+  const shopId = tenantShopId(req);
   const { search } = req.query;
-  let list = memStore.suppliers.filter((s) => s.is_active !== false);
+  let list = memStore.suppliers.filter((s) => s.shop_id === shopId && s.is_active !== false);
 
   if (search) {
     const q = search.trim().toLowerCase();
@@ -21,13 +22,14 @@ router.get('/', (req, res) => {
 
   // Calculate purchase stats
   const enriched = list.map((s) => {
-    const purchases = memStore.purchases.filter((p) => p.supplier_id === s.id);
+    const purchases = memStore.purchases.filter((p) => p.shop_id === shopId && p.supplier_id === s.id);
     const totalPurchases = purchases.reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0);
     const totalPaid = purchases.reduce((sum, p) => sum + (Number(p.paid_amount) || 0), 0);
     const pendingBalance = Math.max(0, totalPurchases - totalPaid);
 
     return {
       id: s.id,
+      shopId: s.shop_id,
       name: s.name,
       companyName: s.company_name,
       contactPerson: s.contact_person,
@@ -55,10 +57,11 @@ router.get('/', (req, res) => {
 
 // GET /api/suppliers/:id
 router.get('/:id', (req, res) => {
-  const s = memStore.suppliers.find((sup) => sup.id === req.params.id);
+  const shopId = tenantShopId(req);
+  const s = memStore.suppliers.find((sup) => sup.shop_id === shopId && sup.id === req.params.id);
   if (!s) return res.status(404).json({ error: 'Supplier not found' });
 
-  const purchases = memStore.purchases.filter((p) => p.supplier_id === s.id);
+  const purchases = memStore.purchases.filter((p) => p.shop_id === shopId && p.supplier_id === s.id);
   res.json({
     ...s,
     purchases,
@@ -66,7 +69,8 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/suppliers
-router.post('/', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR', 'ACCOUNTANT']), (req, res) => {
+router.post('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'INVENTORY_MGR', 'ACCOUNTANT']), (req, res) => {
+  const shopId = tenantShopId(req);
   const { name, companyName, contactPerson, phone, altPhone, email, address, city, state, pincode, gstin, dlNumbers, paymentTermsDays, creditLimit } = req.body;
 
   if (!name || !phone) {
@@ -75,6 +79,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR', 'ACCOUNT
 
   const newSupplier = {
     id: `sup-${Date.now()}`,
+    shop_id: shopId,
     name: name.trim(),
     company_name: companyName ? companyName.trim() : name.trim(),
     contact_person: (contactPerson || '').trim(),
@@ -101,8 +106,9 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR', 'ACCOUNT
 });
 
 // PUT /api/suppliers/:id
-router.put('/:id', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR', 'ACCOUNTANT']), (req, res) => {
-  const s = memStore.suppliers.find((sup) => sup.id === req.params.id);
+router.put('/:id', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'INVENTORY_MGR', 'ACCOUNTANT']), (req, res) => {
+  const shopId = tenantShopId(req);
+  const s = memStore.suppliers.find((sup) => sup.shop_id === shopId && sup.id === req.params.id);
   if (!s) return res.status(404).json({ error: 'Supplier not found' });
 
   const { name, companyName, contactPerson, phone, altPhone, email, address, city, state, pincode, gstin, dlNumbers, paymentTermsDays, creditLimit } = req.body;
@@ -127,8 +133,9 @@ router.put('/:id', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR', 'ACCOU
 });
 
 // POST /api/suppliers/:id/pay - Record payment to supplier
-router.post('/:id/pay', authMiddleware, requireRole(['ADMIN', 'ACCOUNTANT']), (req, res) => {
-  const supplier = memStore.suppliers.find((s) => s.id === req.params.id);
+router.post('/:id/pay', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT']), (req, res) => {
+  const shopId = tenantShopId(req);
+  const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === req.params.id);
   if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
 
   const { amount, paymentMode, referenceNo, notes } = req.body;
@@ -142,6 +149,7 @@ router.post('/:id/pay', authMiddleware, requireRole(['ADMIN', 'ACCOUNTANT']), (r
   // Record audit
   memStore.audit_logs.unshift({
     id: `al-${Date.now()}`,
+    shop_id: shopId,
     user_id: req.user?.id,
     user_name: req.user?.name,
     action: 'SUPPLIER_PAYMENT',

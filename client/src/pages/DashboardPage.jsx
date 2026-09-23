@@ -55,6 +55,61 @@ export function DashboardPage({ setView }) {
 
   return (
     <div className="space-y-6">
+      {/* Compliance Alert Banner (Drug License & Subscription Expiry) */}
+      {d.shop && (() => {
+        const getDays = (dateStr) => {
+          if (!dateStr) return null;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return Math.round((new Date(dateStr + 'T00:00:00') - today) / (1000 * 60 * 60 * 24));
+        };
+        const dlDays = getDays(d.shop.drugLicenseExpiry);
+        const subDays = getDays(d.shop.subscriptionExpiry);
+
+        const dlWarning = dlDays !== null && dlDays <= 90;
+        const subWarning = subDays !== null && subDays <= 30;
+
+        if (!dlWarning && !subWarning) return null;
+
+        return (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="p-2 bg-amber-500 text-white rounded-xl shrink-0 shadow-md shadow-amber-900/20">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="font-bold text-slate-900 flex items-center gap-2">
+                  <span>Medical Store Regulatory & License Notification</span>
+                  <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-1.5 py-0.2 rounded uppercase">
+                    Compliance Action Required
+                  </span>
+                </div>
+                <p className="text-slate-600 text-[11px]">
+                  {dlWarning && (
+                    <span className="mr-3">
+                      • Form 20B/21B Drug License ({d.shop.dlNumber20b || 'DL-20B'}) expires in{' '}
+                      <strong className="text-amber-700 font-mono font-bold">{dlDays} days</strong> ({d.shop.drugLicenseExpiry}).
+                    </span>
+                  )}
+                  {subWarning && (
+                    <span>
+                      • Pharmacy Cloud SaaS Subscription ({d.shop.plan} Plan) renewal due in{' '}
+                      <strong className="text-amber-700 font-mono font-bold">{subDays} days</strong>.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setView('settings')}
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-colors shrink-0"
+            >
+              Update Shop Profile
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Top Banner & Quick Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-900 to-teal-900 text-white rounded-3xl p-6 shadow-xl shadow-emerald-950/10 relative overflow-hidden">
         <div className="relative z-10 space-y-1">

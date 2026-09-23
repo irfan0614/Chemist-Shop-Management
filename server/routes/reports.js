@@ -1,5 +1,6 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
+const { tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 function getDaysUntil(dateStr) {
@@ -11,8 +12,9 @@ function getDaysUntil(dateStr) {
 
 // GET /api/reports/dashboard-summary - Live Operational KPIs
 router.get('/dashboard-summary', (req, res) => {
+  const shopId = tenantShopId(req);
   const todayStr = new Date().toISOString().slice(0, 10);
-  const todaysBills = memStore.sales_invoices.filter((b) => b.invoice_date === todayStr);
+  const todaysBills = memStore.sales_invoices.filter((b) => b.shop_id === shopId && b.invoice_date === todayStr);
 
   const todaysSales = todaysBills.reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
   const todaysGst = todaysBills.reduce((sum, b) => sum + (Number(b.gst_total) || 0), 0);
@@ -32,9 +34,12 @@ router.get('/dashboard-summary', (req, res) => {
   }
   const estimatedGrossProfit = Math.max(0, todaysSales - todaysGst - todaysCost);
 
-  // Inventory stats
-  let totalMedicines = memStore.medicines.filter((m) => m.is_active !== false).length;
-  let totalBatches = memStore.batches.length;
+  // Inventory stats for this shop
+  const shopMedicines = memStore.medicines.filter((m) => m.shop_id === shopId && m.is_active !== false);
+  const shopBatches = memStore.batches.filter((b) => b.shop_id === shopId);
+
+  let totalMedicines = shopMedicines.length;
+  let totalBatches = shopBatches.length;
   let totalUnitsInStock = 0;
   let totalStockValuation = 0;
   let totalStockMrpValuation = 0;
@@ -42,7 +47,7 @@ router.get('/dashboard-summary', (req, res) => {
   let nearExpiryCount = 0;
   let expiredCount = 0;
 
-  for (const b of memStore.batches) {
+  for (const b of shopBatches) {
     const qty = Number(b.current_stock) || 0;
     const cost = Number(b.purchase_cost) || 0;
     const mrp = Number(b.mrp) || 0;
@@ -58,25 +63,25 @@ router.get('/dashboard-summary', (req, res) => {
     }
   }
 
-  for (const m of memStore.medicines) {
-    const medBatches = memStore.batches.filter((b) => b.medicine_id === m.id && !b.is_blocked);
+  for (const m of shopMedicines) {
+    const medBatches = shopBatches.filter((b) => b.medicine_id === m.id && !b.is_blocked);
     const stock = medBatches.reduce((s, b) => s + (Number(b.current_stock) || 0), 0);
     if (stock <= (m.reorder_level || 15)) {
       lowStockCount++;
     }
   }
 
-  // Outstanding balances
-  const customerReceivables = memStore.customers.reduce((sum, c) => sum + (Number(c.current_balance) || 0), 0);
-  const supplierPayables = memStore.suppliers.reduce((sum, s) => sum + (Number(s.current_balance) || 0), 0);
+  // Outstanding balances for this shop
+  const customerReceivables = memStore.customers.filter((c) => c.shop_id === shopId).reduce((sum, c) => sum + (Number(c.current_balance) || 0), 0);
+  const supplierPayables = memStore.suppliers.filter((s) => s.shop_id === shopId).reduce((sum, s) => sum + (Number(s.current_balance) || 0), 0);
 
-  // Today purchases
+  // Today purchases for this shop
   const todaysPurchases = memStore.purchases
-    .filter((p) => p.purchase_date === todayStr)
+    .filter((p) => p.shop_id === shopId && p.purchase_date === todayStr)
     .reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0);
 
-  // Recent 5 sales
-  const recentBills = memStore.sales_invoices.slice(0, 5).map((b) => ({
+  // Recent 5 sales for this shop
+  const recentBills = memStore.sales_invoices.filter((b) => b.shop_id === shopId).slice(0, 5).map((b) => ({
     id: b.id,
     invoiceNo: b.invoice_no,
     customerName: b.customer_name,
@@ -85,7 +90,20 @@ router.get('/dashboard-summary', (req, res) => {
     time: b.created_at,
   }));
 
+  // Shop details & License alert
+  const currentShop = memStore.shops.find((s) => s.id === shopId) || memStore.shops[0];
+
   res.json({
+    shop: currentShop ? {
+      id: currentShop.id,
+      name: currentShop.name,
+      plan: currentShop.plan,
+      subscriptionExpiry: currentShop.subscription_expiry,
+      drugLicenseExpiry: currentShop.drug_license_expiry,
+      dlNumber20b: currentShop.dl_number_20b,
+      dlNumber21b: currentShop.dl_number_21b,
+      gstin: currentShop.gstin,
+    } : null,
     todaysSales,
     todaysBillsCount: todaysBills.length,
     todaysPurchases,
@@ -110,8 +128,9 @@ router.get('/dashboard-summary', (req, res) => {
 
 // GET /api/reports/gst-summary - Indian GST & HSN Breakdown
 router.get('/gst-summary', (req, res) => {
+  const shopId = tenantShopId(req);
   const { startDate, endDate } = req.query;
-  let invoices = [...memStore.sales_invoices];
+  let invoices = memStore.sales_invoices.filter((b) => b.shop_id === shopId);
   if (startDate) invoices = invoices.filter((b) => b.invoice_date >= startDate);
   if (endDate) invoices = invoices.filter((b) => b.invoice_date <= endDate);
 

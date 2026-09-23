@@ -18,15 +18,34 @@ import {
   ChevronRight,
   Plus,
   Cross,
+  Building2,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
 
 export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
-  const { user, hasRole } = useAuth();
+  const { user, hasRole, isSuperAdmin } = useAuth();
   const { settings } = useShop();
 
   const menuSections = [
+    ...(isSuperAdmin
+      ? [
+          {
+            title: 'SaaS Platform',
+            items: [
+              {
+                key: 'platform',
+                label: 'Platform Control Panel',
+                icon: Building2,
+                roles: ['SUPER_ADMIN'],
+                highlight: true,
+                badge: 'SUPER',
+              },
+            ],
+          },
+        ]
+      : []),
     {
       title: 'Operations',
       items: [
@@ -39,8 +58,8 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
       items: [
         { key: 'medicines', label: 'Medicine Catalog', icon: Package, roles: [] },
         { key: 'batches', label: 'Batch Inventory', icon: Boxes, roles: [] },
-        { key: 'purchases', label: 'Purchase Inward', icon: ShoppingBag, roles: ['ADMIN', 'PHARMACIST', 'INVENTORY_MGR'] },
-        { key: 'suppliers', label: 'Suppliers', icon: Truck, roles: ['ADMIN', 'INVENTORY_MGR', 'ACCOUNTANT'] },
+        { key: 'purchases', label: 'Purchase Inward', icon: ShoppingBag, roles: ['ADMIN', 'SHOP_OWNER', 'PHARMACIST', 'INVENTORY_MGR'] },
+        { key: 'suppliers', label: 'Suppliers', icon: Truck, roles: ['ADMIN', 'SHOP_OWNER', 'INVENTORY_MGR', 'ACCOUNTANT'] },
       ],
     },
     {
@@ -55,15 +74,15 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
     {
       title: 'Accounts & Analytics',
       items: [
-        { key: 'expenses', label: 'Expenses & Cash', icon: Wallet, roles: ['ADMIN', 'ACCOUNTANT', 'CASHIER'] },
-        { key: 'reports', label: 'Reports & GST', icon: BarChart3, roles: ['ADMIN', 'ACCOUNTANT'] },
+        { key: 'expenses', label: 'Expenses & Cash', icon: Wallet, roles: ['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT', 'CASHIER'] },
+        { key: 'reports', label: 'Reports & GST', icon: BarChart3, roles: ['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT'] },
       ],
     },
     {
       title: 'Administration',
       items: [
-        { key: 'settings', label: 'Shop Profile & DL', icon: SettingsIcon, roles: ['ADMIN'] },
-        { key: 'users', label: 'Staff & Audit Logs', icon: ShieldCheck, roles: ['ADMIN'] },
+        { key: 'settings', label: 'Shop Profile & DL', icon: SettingsIcon, roles: ['ADMIN', 'SHOP_OWNER'] },
+        { key: 'users', label: 'Staff & Audit Logs', icon: ShieldCheck, roles: ['ADMIN', 'SHOP_OWNER'] },
       ],
     },
   ];
@@ -83,10 +102,19 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
           {!collapsed && (
             <div className="min-w-0">
               <h1 className="font-extrabold text-sm text-white truncate tracking-tight">
-                {settings.shop_name || 'Apollo Chemist'}
+                {isSuperAdmin ? 'MedCloud Platform' : settings.shop_name || 'Apollo Chemist'}
               </h1>
-              <div className="text-[10px] text-emerald-400 font-semibold tracking-wider uppercase truncate">
-                Pharmacy ERP v2.0
+              <div className="text-[10px] text-emerald-400 font-semibold tracking-wider uppercase truncate flex items-center gap-1">
+                {isSuperAdmin ? (
+                  <span>Super Admin Suite</span>
+                ) : (
+                  <>
+                    <span className="bg-emerald-950 text-emerald-300 px-1 rounded border border-emerald-800/50">
+                      {settings.plan || 'PRO'}
+                    </span>
+                    <span>Pharmacy v2.0</span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -109,13 +137,14 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
           return (
             <div key={sIdx} className="space-y-1">
               {!collapsed && (
-                <div className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300">
+                <div className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                   {section.title}
                 </div>
               )}
               {visibleItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentView === item.key;
+                const isPlatformItem = item.key === 'platform';
 
                 return (
                   <button
@@ -123,7 +152,11 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
                     onClick={() => setView(item.key)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group relative ${
                       isActive
-                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/30'
+                        ? isPlatformItem
+                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-950/40 font-bold'
+                          : 'bg-emerald-600 text-white shadow-lg shadow-emerald-950/30 font-bold'
+                        : isPlatformItem
+                        ? 'bg-indigo-950/40 text-indigo-300 hover:bg-indigo-900/50 border border-indigo-700/40'
                         : item.highlight
                         ? 'bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30'
                         : 'text-slate-300 hover:bg-slate-900 hover:text-white'
@@ -132,7 +165,13 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
                   >
                     <Icon
                       className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
-                        isActive ? 'text-white' : item.highlight ? 'text-emerald-400' : 'text-slate-400'
+                        isActive
+                          ? 'text-white'
+                          : isPlatformItem
+                          ? 'text-indigo-400'
+                          : item.highlight
+                          ? 'text-emerald-400'
+                          : 'text-slate-400'
                       }`}
                     />
                     {!collapsed && <span className="truncate">{item.label}</span>}
@@ -140,7 +179,9 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
                       <span
                         className={`ml-auto text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
                           isActive
-                            ? 'bg-emerald-700 text-emerald-100'
+                            ? 'bg-white/20 text-white'
+                            : isPlatformItem
+                            ? 'bg-indigo-900/80 text-indigo-200 border border-indigo-600/60'
                             : 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50'
                         }`}
                       >
@@ -175,3 +216,4 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
     </aside>
   );
 }
+

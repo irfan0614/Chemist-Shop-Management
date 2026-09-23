@@ -6,16 +6,13 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('chemist_user');
-    return saved ? JSON.parse(saved) : {
-      id: '00000000-0000-0000-0000-000000000001',
-      name: 'Master Admin (Owner)',
-      email: 'admin@chemist.com',
-      role: 'ADMIN',
-      phone: '+91 9876543210',
-    };
+    return saved ? JSON.parse(saved) : null;
   });
   const [token, setToken] = useState(() => localStorage.getItem('chemist_auth_token'));
   const [loading, setLoading] = useState(false);
+
+  const isSuperAdmin = Boolean(user?.role === 'SUPER_ADMIN' || user?.is_super_admin);
+  const isShopOwner = Boolean(user?.role === 'ADMIN' || user?.role === 'SHOP_OWNER');
 
   const login = async (email, password) => {
     setLoading(true);
@@ -40,13 +37,25 @@ export function AuthProvider({ children }) {
 
   const hasRole = useCallback((allowedRoles = []) => {
     if (!user) return false;
-    if (user.role === 'ADMIN') return true;
+    if (isSuperAdmin) return true;
+    if (user.role === 'ADMIN' || user.role === 'SHOP_OWNER') return true;
     if (allowedRoles.length === 0) return true;
     return allowedRoles.includes(user.role);
-  }, [user]);
+  }, [user, isSuperAdmin]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, hasRole }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        logout,
+        hasRole,
+        isSuperAdmin,
+        isShopOwner,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -57,3 +66,4 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
   return ctx;
 }
+

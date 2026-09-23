@@ -1,12 +1,13 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/purchases
 router.get('/', (req, res) => {
+  const shopId = tenantShopId(req);
   const { search, supplierId, startDate, endDate } = req.query;
-  let list = [...memStore.purchases];
+  let list = memStore.purchases.filter((p) => p.shop_id === shopId);
 
   if (supplierId) {
     list = list.filter((p) => p.supplier_id === supplierId);
@@ -21,7 +22,7 @@ router.get('/', (req, res) => {
   }
 
   let enriched = list.map((p) => {
-    const supplier = memStore.suppliers.find((s) => s.id === p.supplier_id) || {};
+    const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === p.supplier_id) || {};
     return {
       id: p.id,
       purchaseNo: p.purchase_no,
@@ -59,10 +60,11 @@ router.get('/', (req, res) => {
 
 // GET /api/purchases/:id
 router.get('/:id', (req, res) => {
-  const p = memStore.purchases.find((pur) => pur.id === req.params.id);
+  const shopId = tenantShopId(req);
+  const p = memStore.purchases.find((pur) => pur.shop_id === shopId && pur.id === req.params.id);
   if (!p) return res.status(404).json({ error: 'Purchase invoice not found' });
 
-  const supplier = memStore.suppliers.find((s) => s.id === p.supplier_id) || {};
+  const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === p.supplier_id) || {};
   res.json({
     ...p,
     supplier,
@@ -70,7 +72,8 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/purchases - Create Purchase Invoice + Update/Create Batches + Update Supplier Balance
-router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_MGR']), (req, res) => {
+router.post('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'PHARMACIST', 'INVENTORY_MGR']), (req, res) => {
+  const shopId = tenantShopId(req);
   const {
     supplierId,
     supplierInvoiceNo,
@@ -87,7 +90,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_
     return res.status(400).json({ error: 'Supplier, invoice number, and at least one item are required' });
   }
 
-  const supplier = memStore.suppliers.find((s) => s.id === supplierId);
+  const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === supplierId);
   if (!supplier) return res.status(400).json({ error: 'Invalid supplier selected' });
 
   // Generate Purchase No
@@ -99,7 +102,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_
   const purchaseItems = [];
 
   for (const it of items) {
-    const med = memStore.medicines.find((m) => m.id === it.medicineId);
+    const med = memStore.medicines.find((m) => m.shop_id === shopId && m.id === it.medicineId);
     if (!med) throw new Error(`Medicine ${it.medicineId} not found`);
 
     const qty = parseInt(it.qty) || 0;
@@ -122,7 +125,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_
 
     // Check if batch already exists or create new
     let batch = memStore.batches.find(
-      (b) => b.medicine_id === med.id && b.batch_no.toLowerCase() === (it.batchNo || '').trim().toLowerCase()
+      (b) => b.shop_id === shopId && b.medicine_id === med.id && b.batch_no.toLowerCase() === (it.batchNo || '').trim().toLowerCase()
     );
 
     if (batch) {
@@ -134,6 +137,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_
     } else {
       batch = {
         id: `b-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        shop_id: shopId,
         medicine_id: med.id,
         batch_no: (it.batchNo || `B-${Date.now()}`).trim(),
         mfg_date: it.mfgDate || null,
@@ -150,6 +154,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_
 
     purchaseItems.push({
       id: `pi-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      shop_id: shopId,
       medicineId: med.id,
       medicineName: med.name,
       batchId: batch.id,
@@ -175,6 +180,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_
 
   const newPurchase = {
     id: `pur-${Date.now()}`,
+    shop_id: shopId,
     purchase_no: purchaseNo,
     supplier_id: supplier.id,
     supplier_invoice_no: supplierInvoiceNo.trim(),
@@ -202,6 +208,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_
   // Log audit
   memStore.audit_logs.unshift({
     id: `al-${Date.now()}`,
+    shop_id: shopId,
     user_id: req.user?.id,
     user_name: req.user?.name,
     action: 'CREATE_PURCHASE',

@@ -313,6 +313,29 @@ export function POSBillingPage() {
     }
   };
 
+  // Drug Safety Warnings
+  const [safetyWarnings, setSafetyWarnings] = useState([]);
+  const [completedInvoice, setCompletedInvoice] = useState(null);
+
+  // Check drug safety when cart changes
+  useEffect(() => {
+    if (cart.length < 2) {
+      setSafetyWarnings([]);
+      return;
+    }
+    const checkSafety = async () => {
+      try {
+        const res = await api.post('/pos/check-drug-safety', {
+          items: cart.map((i) => ({ medicineId: i.medicineId, batchId: i.batchId })),
+        });
+        setSafetyWarnings(res.warnings || []);
+      } catch (e) {
+        console.warn('Safety check skipped:', e.message);
+      }
+    };
+    checkSafety();
+  }, [cart]);
+
   // Checkout & Finalize Bill
   const handleCompleteSale = async () => {
     if (cart.length === 0) return;
@@ -350,6 +373,7 @@ export function POSBillingPage() {
 
       const invoice = await api.post('/pos/checkout', payload);
       showSuccess(`Invoice #${invoice.invoice_no} generated successfully!`);
+      setCompletedInvoice(invoice);
 
       // Reset POS
       setCart([]);
@@ -586,6 +610,23 @@ export function POSBillingPage() {
                 </button>
               )}
             </div>
+
+            {/* Drug Safety Warnings Banner */}
+            {safetyWarnings.length > 0 && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-1.5">
+                <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Drug Interaction & Salt Safety Alert:</span>
+                </div>
+                <div className="space-y-1 pl-5">
+                  {safetyWarnings.map((w, idx) => (
+                    <div key={idx} className="text-amber-800 text-[11px] leading-tight">
+                      • {w.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Cart Items List */}
             <div className="max-h-80 overflow-y-auto space-y-2.5">
@@ -837,6 +878,63 @@ export function POSBillingPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Sale Completed & WhatsApp Sharing Modal */}
+      {completedInvoice && (
+        <Modal
+          isOpen={!!completedInvoice}
+          onClose={() => setCompletedInvoice(null)}
+          title={`Invoice #${completedInvoice.invoice_no} Generated`}
+          subtitle="Tax invoice recorded successfully in database"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center space-y-1">
+              <div className="w-12 h-12 bg-emerald-600 text-white rounded-full mx-auto flex items-center justify-center shadow-lg shadow-emerald-950/20">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div className="text-lg font-black text-slate-900 mt-2">
+                ₹{Number(completedInvoice.total_amount || 0).toLocaleString('en-IN')}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Customer: <strong className="text-slate-800">{completedInvoice.customer_name || 'Walk-in'}</strong> • Mode:{' '}
+                <strong className="text-slate-800 uppercase">{completedInvoice.payment_mode}</strong>
+              </p>
+            </div>
+
+            {/* WhatsApp Direct Share Button */}
+            {completedInvoice.customer_phone && (
+              <a
+                href={`https://wa.me/91${completedInvoice.customer_phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                  `Namaste ${completedInvoice.customer_name || 'Customer'},\n\nThank you for shopping with *${settings.shop_name}*!\n\n🧾 *Invoice No:* ${completedInvoice.invoice_no}\n📅 *Date:* ${completedInvoice.invoice_date}\n💰 *Total Amount:* ₹${completedInvoice.total_amount}\n\nFor any queries or medicine dosage assistance, call us at ${settings.phone || ''}.\n\nGet well soon! 🏥💊`
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-950/20 transition-all text-xs"
+              >
+                <span>📲 Share Digital Invoice on WhatsApp</span>
+              </a>
+            )}
+
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  triggerPrint(completedInvoice);
+                }}
+                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 text-xs"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Re-print Invoice</span>
+              </button>
+              <button
+                onClick={() => setCompletedInvoice(null)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

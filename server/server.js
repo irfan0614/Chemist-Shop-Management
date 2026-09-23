@@ -15,31 +15,43 @@ const expensesRouter = require('./routes/expenses');
 const reportsRouter = require('./routes/reports');
 const settingsRouter = require('./routes/settings');
 
+const platformRouter = require('./routes/platform');
+
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-app.get('/api/health', (req, res) => res.json({
+// Health check
+app.get(['/api/health', '/health'], (req, res) => res.json({
   status: 'ok',
-  system: 'Chemist Shop Management API',
-  version: '2.0.0',
-  compliance: 'Indian Pharmacy Act, Drugs & Cosmetics Act 1940 (Schedule H/H1/X), GST Ready',
+  system: 'Multi-Tenant Chemist Shop Management API',
+  version: '2.5.0',
+  compliance: 'Indian Pharmacy Act, Drugs & Cosmetics Act 1940 (Schedule H/H1/X), GST Multi-Tenant Ready',
   timestamp: new Date().toISOString(),
 }));
 
-app.use('/api/auth', authRouter);
-app.use('/api/medicines', medicinesRouter);
-app.use('/api/batches', batchesRouter);
-app.use('/api/suppliers', suppliersRouter);
-app.use('/api/purchases', purchasesRouter);
-app.use('/api/pos', posRouter);
-app.use('/api/bills', posRouter); // Backward compatibility alias
-app.use('/api/customers', customersRouter);
-app.use('/api/prescriptions', prescriptionsRouter);
-app.use('/api/returns', returnsRouter);
-app.use('/api/expenses', expensesRouter);
-app.use('/api/reports', reportsRouter);
-app.use('/api/settings', settingsRouter);
+// Multi-Tenant API Routers (mounted on both /api/* and root /* for flexible client configs)
+const routers = [
+  { path: '/platform', router: platformRouter },
+  { path: '/auth', router: authRouter },
+  { path: '/medicines', router: medicinesRouter },
+  { path: '/batches', router: batchesRouter },
+  { path: '/suppliers', router: suppliersRouter },
+  { path: '/purchases', router: purchasesRouter },
+  { path: '/pos', router: posRouter },
+  { path: '/bills', router: posRouter },
+  { path: '/customers', router: customersRouter },
+  { path: '/prescriptions', router: prescriptionsRouter },
+  { path: '/returns', router: returnsRouter },
+  { path: '/expenses', router: expensesRouter },
+  { path: '/reports', router: reportsRouter },
+  { path: '/settings', router: settingsRouter },
+];
+
+routers.forEach(({ path, router }) => {
+  app.use(`/api${path}`, router);
+  app.use(path, router);
+});
 
 // Global 404 handler
 app.use((req, res) => {
@@ -53,7 +65,18 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`✅ Chemist Shop API v2.0 running on http://localhost:${PORT}`);
-  console.log(`💊 Modules Loaded: Auth, Medicines, Batches, Suppliers, Purchases, POS, Customers, Prescriptions, Returns, Expenses, Reports, Settings`);
+const server = app.listen(PORT, () => {
+  console.log(`✅ Chemist Shop Multi-Tenant API running on http://localhost:${PORT}`);
+  console.log(`💊 Multi-Tenant Routers Active: Platform, Auth, Medicines, Batches, Suppliers, Purchases, POS, Customers, Prescriptions, Returns, Expenses, Reports, Settings`);
 });
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use by an older server process.`);
+    console.error(`👉 Please kill the running node process and restart:`);
+    console.error(`   Windows PowerShell: Stop-Process -Name node -Force; node server.js`);
+  } else {
+    console.error('Server error:', err);
+  }
+});
+

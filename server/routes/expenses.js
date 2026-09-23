@@ -1,12 +1,13 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
-const { authMiddleware, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/expenses
 router.get('/', (req, res) => {
+  const shopId = tenantShopId(req);
   const { startDate, endDate, categoryId } = req.query;
-  let list = [...memStore.expenses];
+  let list = memStore.expenses.filter((e) => e.shop_id === shopId);
 
   if (startDate) list = list.filter((e) => e.expense_date >= startDate);
   if (endDate) list = list.filter((e) => e.expense_date <= endDate);
@@ -27,16 +28,19 @@ router.get('/', (req, res) => {
 
 // GET /api/expenses/categories
 router.get('/categories', (req, res) => {
-  res.json(memStore.expense_categories);
+  const shopId = tenantShopId(req);
+  res.json(memStore.expense_categories.filter((c) => !c.shop_id || c.shop_id === shopId));
 });
 
 // POST /api/expenses/categories
-router.post('/categories', authMiddleware, requireRole(['ADMIN', 'ACCOUNTANT']), (req, res) => {
+router.post('/categories', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT']), (req, res) => {
+  const shopId = tenantShopId(req);
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Category name is required' });
 
   const newCat = {
     id: `ec-${Date.now()}`,
+    shop_id: shopId,
     name: name.trim(),
     description: description || '',
   };
@@ -45,7 +49,8 @@ router.post('/categories', authMiddleware, requireRole(['ADMIN', 'ACCOUNTANT']),
 });
 
 // POST /api/expenses
-router.post('/', authMiddleware, requireRole(['ADMIN', 'ACCOUNTANT', 'PHARMACIST', 'CASHIER']), (req, res) => {
+router.post('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT', 'PHARMACIST', 'CASHIER']), (req, res) => {
+  const shopId = tenantShopId(req);
   const { categoryId, expenseDate, title, amount, paymentMode = 'CASH', paidTo, notes } = req.body;
 
   const numAmount = parseFloat(amount);
@@ -53,9 +58,11 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'ACCOUNTANT', 'PHARMACIST
     return res.status(400).json({ error: 'Title and valid amount are required' });
   }
 
+  const defaultCat = memStore.expense_categories[0]?.id || 'ec-1';
   const newExp = {
     id: `exp-${Date.now()}`,
-    category_id: categoryId || memStore.expense_categories[0]?.id || 'ec-1',
+    shop_id: shopId,
+    category_id: categoryId || defaultCat,
     expense_date: expenseDate || new Date().toISOString().slice(0, 10),
     title: title.trim(),
     amount: numAmount,
@@ -70,7 +77,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'ACCOUNTANT', 'PHARMACIST
   // If cash expense, update cash register
   if (paymentMode === 'CASH') {
     const todayRegister = memStore.cash_registers.find(
-      (cr) => cr.register_date === newExp.expense_date && cr.status === 'OPEN'
+      (cr) => cr.shop_id === shopId && cr.register_date === newExp.expense_date && cr.status === 'OPEN'
     );
     if (todayRegister) {
       todayRegister.cash_expenses += numAmount;
@@ -83,12 +90,14 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'ACCOUNTANT', 'PHARMACIST
 
 // GET /api/expenses/cash-register/status - Today's drawer status
 router.get('/cash-register/status', (req, res) => {
+  const shopId = tenantShopId(req);
   const today = new Date().toISOString().slice(0, 10);
-  let reg = memStore.cash_registers.find((cr) => cr.register_date === today);
+  let reg = memStore.cash_registers.find((cr) => cr.shop_id === shopId && cr.register_date === today);
 
   if (!reg) {
     reg = {
       id: `cr-${Date.now()}`,
+      shop_id: shopId,
       register_date: today,
       opening_cash: 2000.0,
       cash_sales: 0.0,
@@ -110,9 +119,10 @@ router.get('/cash-register/status', (req, res) => {
 });
 
 // POST /api/expenses/cash-register/close - End-of-Day Cash Drawer Reconciliation
-router.post('/cash-register/close', authMiddleware, requireRole(['ADMIN', 'CASHIER']), (req, res) => {
+router.post('/cash-register/close', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'CASHIER']), (req, res) => {
+  const shopId = tenantShopId(req);
   const today = new Date().toISOString().slice(0, 10);
-  const reg = memStore.cash_registers.find((cr) => cr.register_date === today);
+  const reg = memStore.cash_registers.find((cr) => cr.shop_id === shopId && cr.register_date === today);
   if (!reg) return res.status(404).json({ error: 'No cash register found for today' });
 
   const { countedClosingCash, notes } = req.body;
@@ -131,6 +141,7 @@ router.post('/cash-register/close', authMiddleware, requireRole(['ADMIN', 'CASHI
   // Audit log
   memStore.audit_logs.unshift({
     id: `al-${Date.now()}`,
+    shop_id: shopId,
     user_id: req.user?.id,
     user_name: req.user?.name,
     action: 'CASH_DRAWER_CLOSE',

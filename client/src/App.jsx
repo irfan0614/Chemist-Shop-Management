@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ShopProvider, useShop } from './context/ShopContext';
 import { ToastProvider } from './context/ToastContext';
@@ -9,6 +9,7 @@ import { ThermalReceipt } from './components/pos/ThermalReceipt';
 import { A4TaxInvoice } from './components/pos/A4TaxInvoice';
 
 import { LoginPage } from './pages/LoginPage';
+import { PlatformAdminPage } from './pages/PlatformAdminPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { POSBillingPage } from './pages/POSBillingPage';
 import { MedicinesPage } from './pages/MedicinesPage';
@@ -25,66 +26,82 @@ import { UsersPage } from './pages/UsersPage';
 import { SalesHistoryPage } from './pages/SalesHistoryPage';
 
 function MainLayout() {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const { settings, lastPrintedInvoice, printFormat } = useShop();
-  const [currentView, setView] = useState('dashboard');
+  const [currentView, setView] = useState(() => (isSuperAdmin ? 'platform' : 'dashboard'));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
+  useEffect(() => {
+    if (isSuperAdmin && currentView === 'dashboard') {
+      setView('platform');
+    }
+  }, [isSuperAdmin]);
 
   if (!user) {
     return <LoginPage />;
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-800">
-      {/* Collapsible Sidebar */}
-      <Sidebar
-        currentView={currentView}
-        setView={setView}
-        collapsed={sidebarCollapsed}
-        setCollapsed={setSidebarCollapsed}
-      />
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Topbar Header */}
-        <Header
+    <>
+      {/* Interactive App Shell (Hidden when printing) */}
+      <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-800 print:hidden">
+        {/* Collapsible Sidebar */}
+        <Sidebar
+          currentView={currentView}
           setView={setView}
-          onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
         />
 
-        {/* Scrollable View Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 print:hidden">
-          {currentView === 'dashboard' && <DashboardPage setView={setView} />}
-          {currentView === 'pos' && <POSBillingPage />}
-          {currentView === 'medicines' && <MedicinesPage />}
-          {currentView === 'batches' && <BatchesPage />}
-          {currentView === 'purchases' && <PurchasesPage />}
-          {currentView === 'suppliers' && <SuppliersPage />}
-          {currentView === 'customers' && <CustomersPage />}
-          {currentView === 'prescriptions' && <PrescriptionsPage />}
-          {currentView === 'returns' && <ReturnsPage />}
-          {currentView === 'expenses' && <ExpensesPage />}
-          {currentView === 'reports' && <ReportsPage />}
-          {currentView === 'settings' && <SettingsPage />}
-          {currentView === 'users' && <UsersPage />}
-          {currentView === 'history' && <SalesHistoryPage />}
-        </main>
-      </div>
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Topbar Header */}
+          <Header
+            setView={setView}
+            onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          />
 
-      {/* Keyboard Shortcuts Modal */}
-      <KeyboardShortcutsModal
-        isOpen={isShortcutsOpen}
-        onClose={() => setIsShortcutsOpen(false)}
-      />
+          {/* Scrollable View Container */}
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            {currentView === 'platform' && <PlatformAdminPage />}
+            {currentView === 'dashboard' && <DashboardPage setView={setView} />}
+            {currentView === 'pos' && <POSBillingPage />}
+            {currentView === 'medicines' && <MedicinesPage />}
+            {currentView === 'batches' && <BatchesPage />}
+            {currentView === 'purchases' && <PurchasesPage />}
+            {currentView === 'suppliers' && <SuppliersPage />}
+            {currentView === 'customers' && <CustomersPage />}
+            {currentView === 'prescriptions' && <PrescriptionsPage />}
+            {currentView === 'returns' && <ReturnsPage />}
+            {currentView === 'expenses' && <ExpensesPage />}
+            {currentView === 'reports' && <ReportsPage />}
+            {currentView === 'settings' && <SettingsPage />}
+            {currentView === 'users' && <UsersPage />}
+            {currentView === 'history' && <SalesHistoryPage />}
+          </main>
+        </div>
+
+        {/* Keyboard Shortcuts Modal */}
+        <KeyboardShortcutsModal
+          isOpen={isShortcutsOpen}
+          onClose={() => setIsShortcutsOpen(false)}
+        />
+      </div>
 
       {/* Print Templates (Rendered only on window.print()) */}
       {printFormat === 'A4' ? (
-        <A4TaxInvoice invoice={lastPrintedInvoice} settings={settings} />
+        <A4TaxInvoice
+          invoice={lastPrintedInvoice}
+          settings={{ ...settings, thermal_printer_size: printFormat }}
+        />
       ) : (
-        <ThermalReceipt invoice={lastPrintedInvoice} settings={settings} />
+        <ThermalReceipt
+          invoice={lastPrintedInvoice}
+          settings={{ ...settings, thermal_printer_size: printFormat }}
+        />
       )}
-    </div>
+    </>
   );
 }
 
@@ -99,3 +116,4 @@ export default function App() {
     </ToastProvider>
   );
 }
+
