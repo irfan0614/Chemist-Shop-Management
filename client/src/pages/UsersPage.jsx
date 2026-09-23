@@ -19,7 +19,7 @@ export function UsersPage() {
     name: '',
     email: '',
     password: '',
-    role: 'PHARMACIST',
+    role: 'SHOP_OWNER',
     phone: '',
   });
 
@@ -51,9 +51,9 @@ export function UsersPage() {
 
     try {
       const res = await api.post('/auth/users', form);
-      showSuccess(`Staff user "${res.name}" registered with role ${res.role}`);
+      showSuccess(`Shop Owner account "${res.name}" registered successfully`);
       setIsAddUserModalOpen(false);
-      setForm({ name: '', email: '', password: '', role: 'PHARMACIST', phone: '' });
+      setForm({ name: '', email: '', password: '', role: 'SHOP_OWNER', phone: '' });
       loadData();
     } catch (err) {
       showError(err.message);
@@ -72,7 +72,7 @@ export function UsersPage() {
 
   const userColumns = [
     {
-      header: 'Staff Member',
+      header: 'Account Name',
       key: 'name',
       render: (u) => (
         <div>
@@ -85,8 +85,8 @@ export function UsersPage() {
       header: 'System Role',
       key: 'role',
       render: (u) => {
-        const tone = u.role === 'ADMIN' ? 'purple' : u.role === 'PHARMACIST' ? 'ok' : 'neutral';
-        return <Badge tone={tone}>{u.role}</Badge>;
+        const isSuper = u.role === 'SUPER_ADMIN';
+        return <Badge tone={isSuper ? 'blue' : 'purple'}>{u.role}</Badge>;
       },
     },
     {
@@ -157,8 +157,8 @@ export function UsersPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
         <div>
-          <h1 className="text-base font-extrabold text-slate-900">User Management & Security Audit</h1>
-          <p className="text-xs text-slate-400">Manage pharmacy staff, RBAC access roles, and immutable audit logs</p>
+          <h1 className="text-base font-extrabold text-slate-900">Shop Owner & Security Audit</h1>
+          <p className="text-xs text-slate-400">Manage medical shop owner credentials and tamper-evident audit logs</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -169,7 +169,7 @@ export function UsersPage() {
                 activeTab === 'users' ? 'bg-white text-emerald-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Staff Accounts
+              Shop Owner Accounts
             </button>
             <button
               onClick={() => setActiveTab('audit')}
@@ -186,7 +186,7 @@ export function UsersPage() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
           >
             <UserPlus className="w-4 h-4" />
-            <span>Add Staff Account</span>
+            <span>Add Shop Owner</span>
           </button>
         </div>
       </div>
@@ -196,9 +196,9 @@ export function UsersPage() {
         <DataTable
           columns={userColumns}
           data={users}
-          searchPlaceholder="Search staff by name, email, or role…"
+          searchPlaceholder="Search accounts by name, email, or role…"
           searchFields={['name', 'email', 'role', 'phone']}
-          exportFilename="pharmacy_staff_directory"
+          exportFilename="shop_owner_directory"
         />
       ) : (
         <DataTable
@@ -210,32 +210,32 @@ export function UsersPage() {
         />
       )}
 
-      {/* Add Staff Account Modal */}
+      {/* Add Shop Owner Modal */}
       <Modal
         isOpen={isAddUserModalOpen}
         onClose={() => setIsAddUserModalOpen(false)}
-        title="Add Staff Member Account"
-        subtitle="Set system login credentials and role permissions"
+        title="Add Shop Owner Account"
+        subtitle="Provision a medical shop owner account with full shop management access"
         maxWidth="max-w-xl"
       >
         <div className="space-y-3 text-xs">
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Full Name *</label>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">Owner Full Name *</label>
             <input
               type="text"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none"
-              placeholder="e.g. Ramesh Kumar"
+              placeholder="e.g. Dr. Rajesh Sharma"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Email / Username *</label>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">Login Email *</label>
             <input
               type="email"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none"
-              placeholder="ramesh@chemist.com"
+              placeholder="owner@chemist.com"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
@@ -254,18 +254,14 @@ export function UsersPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">System Role *</label>
-              <select
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none"
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-              >
-                <option value="PHARMACIST">Lead Pharmacist</option>
-                <option value="CASHIER">Billing Cashier</option>
-                <option value="INVENTORY_MGR">Inventory Manager</option>
-                <option value="ACCOUNTANT">Accountant</option>
-                <option value="ADMIN">Administrator / Owner</option>
-              </select>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">System Role</label>
+              <input
+                type="text"
+                readOnly
+                disabled
+                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700"
+                value="SHOP_OWNER"
+              />
             </div>
 
             <div>

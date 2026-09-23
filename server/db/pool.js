@@ -145,44 +145,11 @@ const memStore = {
     },
     {
       id: '00000000-0000-0000-0000-000000000002',
-      full_name: 'Rohit Verma (Lead Pharmacist - Apollo)',
-      email: 'pharmacist@chemist.com',
-      password_hash: '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-      role: 'PHARMACIST',
-      phone: '+91 98112 23344',
-      shop_id: '11111111-1111-1111-1111-111111111111',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000003',
-      full_name: 'Priya Patel (Billing Cashier - Apollo)',
-      email: 'cashier@chemist.com',
-      password_hash: '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-      role: 'CASHIER',
-      phone: '+91 98223 34455',
-      shop_id: '11111111-1111-1111-1111-111111111111',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000004',
       full_name: 'Dr. Sunita Mehta (CarePlus Owner)',
       email: 'owner@careplus.com',
       password_hash: '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
       role: 'SHOP_OWNER',
       phone: '+91 98200 12345',
-      shop_id: '22222222-2222-2222-2222-222222222222',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000005',
-      full_name: 'Amit Joshi (Pharmacist - CarePlus)',
-      email: 'pharmacist@careplus.com',
-      password_hash: '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-      role: 'PHARMACIST',
-      phone: '+91 98334 45566',
       shop_id: '22222222-2222-2222-2222-222222222222',
       is_active: true,
       created_at: new Date().toISOString(),
@@ -752,6 +719,18 @@ const memStore = {
   audit_logs: [],
   held_bills: [],
 };
+
+// Aliases for backward compatibility
+Object.defineProperty(memStore, 'bills', {
+  get() {
+    return this.sales_invoices || [];
+  },
+  set(val) {
+    this.sales_invoices = val;
+  },
+  configurable: true,
+  enumerable: true,
+});
 
 // Auto-tag all existing entities with primary shop_id and seed sample tenant data
 const DEFAULT_SHOP_ID = '11111111-1111-1111-1111-111111111111';

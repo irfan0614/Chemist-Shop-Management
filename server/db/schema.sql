@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS users (
   full_name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'PHARMACIST' CHECK (role IN ('ADMIN', 'PHARMACIST', 'CASHIER', 'INVENTORY_MGR', 'ACCOUNTANT')),
+  role TEXT NOT NULL DEFAULT 'SHOP_OWNER' CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER')),
   phone TEXT DEFAULT '',
   is_active BOOLEAN NOT NULL DEFAULT true,
   last_login_at TIMESTAMPTZ,
@@ -66,19 +66,19 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (lower(email));
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
 
--- Seed default admin user (password: admin123)
+-- Seed default shop owner user (password: admin123)
 -- bcrypt hash for 'admin123'
 INSERT INTO users (id, full_name, email, password_hash, role, phone, is_active)
 VALUES (
   '00000000-0000-0000-0000-000000000001',
-  'Master Admin (Owner)',
+  'Dr. Rajesh Sharma (Apollo Owner)',
   'admin@chemist.com',
   '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6', -- hashed 'admin123'
-  'ADMIN',
+  'SHOP_OWNER',
   '+91 9876543210',
   true
 )
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE SET role = 'SHOP_OWNER';
 
 -- Seed default pharmacist user (password: pharmacist123)
 INSERT INTO users (id, full_name, email, password_hash, role, phone, is_active)

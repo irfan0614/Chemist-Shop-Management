@@ -33,7 +33,7 @@ router.get('/categories', (req, res) => {
 });
 
 // POST /api/expenses/categories
-router.post('/categories', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT']), (req, res) => {
+router.post('/categories', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Category name is required' });
@@ -49,7 +49,7 @@ router.post('/categories', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', '
 });
 
 // POST /api/expenses
-router.post('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT', 'PHARMACIST', 'CASHIER']), (req, res) => {
+router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const { categoryId, expenseDate, title, amount, paymentMode = 'CASH', paidTo, notes } = req.body;
 
@@ -119,7 +119,7 @@ router.get('/cash-register/status', (req, res) => {
 });
 
 // POST /api/expenses/cash-register/close - End-of-Day Cash Drawer Reconciliation
-router.post('/cash-register/close', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'CASHIER']), (req, res) => {
+router.post('/cash-register/close', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const today = new Date().toISOString().slice(0, 10);
   const reg = memStore.cash_registers.find((cr) => cr.shop_id === shopId && cr.register_date === today);

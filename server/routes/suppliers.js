@@ -69,7 +69,7 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/suppliers
-router.post('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'INVENTORY_MGR', 'ACCOUNTANT']), (req, res) => {
+router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const { name, companyName, contactPerson, phone, altPhone, email, address, city, state, pincode, gstin, dlNumbers, paymentTermsDays, creditLimit } = req.body;
 
@@ -106,7 +106,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'INVENTORY_
 });
 
 // PUT /api/suppliers/:id
-router.put('/:id', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'INVENTORY_MGR', 'ACCOUNTANT']), (req, res) => {
+router.put('/:id', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const s = memStore.suppliers.find((sup) => sup.shop_id === shopId && sup.id === req.params.id);
   if (!s) return res.status(404).json({ error: 'Supplier not found' });
@@ -133,7 +133,7 @@ router.put('/:id', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'INVENTOR
 });
 
 // POST /api/suppliers/:id/pay - Record payment to supplier
-router.post('/:id/pay', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT']), (req, res) => {
+router.post('/:id/pay', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === req.params.id);
   if (!supplier) return res.status(404).json({ error: 'Supplier not found' });

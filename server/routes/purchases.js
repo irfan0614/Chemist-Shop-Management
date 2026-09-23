@@ -72,7 +72,7 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/purchases - Create Purchase Invoice + Update/Create Batches + Update Supplier Balance
-router.post('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'PHARMACIST', 'INVENTORY_MGR']), (req, res) => {
+router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const {
     supplierId,

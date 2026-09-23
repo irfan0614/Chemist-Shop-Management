@@ -49,40 +49,40 @@ export function Sidebar({ currentView, setView, collapsed, setCollapsed }) {
     {
       title: 'Operations',
       items: [
-        { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: [] },
-        { key: 'pos', label: 'POS Billing', icon: Receipt, roles: [], badge: 'F2', highlight: true },
+        { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SHOP_OWNER'] },
+        { key: 'pos', label: 'POS Billing', icon: Receipt, roles: ['SHOP_OWNER'], badge: 'F2', highlight: true },
       ],
     },
     {
       title: 'Inventory & Procurement',
       items: [
-        { key: 'medicines', label: 'Medicine Catalog', icon: Package, roles: [] },
-        { key: 'batches', label: 'Batch Inventory', icon: Boxes, roles: [] },
-        { key: 'purchases', label: 'Purchase Inward', icon: ShoppingBag, roles: ['ADMIN', 'SHOP_OWNER', 'PHARMACIST', 'INVENTORY_MGR'] },
-        { key: 'suppliers', label: 'Suppliers', icon: Truck, roles: ['ADMIN', 'SHOP_OWNER', 'INVENTORY_MGR', 'ACCOUNTANT'] },
+        { key: 'medicines', label: 'Medicine Catalog', icon: Package, roles: ['SHOP_OWNER'] },
+        { key: 'batches', label: 'Batch Inventory', icon: Boxes, roles: ['SHOP_OWNER'] },
+        { key: 'purchases', label: 'Purchase Inward', icon: ShoppingBag, roles: ['SHOP_OWNER'] },
+        { key: 'suppliers', label: 'Suppliers', icon: Truck, roles: ['SHOP_OWNER'] },
       ],
     },
     {
       title: 'Patients & Compliance',
       items: [
-        { key: 'history', label: 'Sales History', icon: History, roles: [] },
-        { key: 'customers', label: 'Customers (Khata)', icon: Users, roles: [] },
-        { key: 'prescriptions', label: 'Prescriptions / H1', icon: FileText, roles: [] },
-        { key: 'returns', label: 'Returns & Refunds', icon: RotateCcw, roles: [] },
+        { key: 'history', label: 'Sales History', icon: History, roles: ['SHOP_OWNER'] },
+        { key: 'customers', label: 'Customers (Khata)', icon: Users, roles: ['SHOP_OWNER'] },
+        { key: 'prescriptions', label: 'Prescriptions / H1', icon: FileText, roles: ['SHOP_OWNER'] },
+        { key: 'returns', label: 'Returns & Refunds', icon: RotateCcw, roles: ['SHOP_OWNER'] },
       ],
     },
     {
       title: 'Accounts & Analytics',
       items: [
-        { key: 'expenses', label: 'Expenses & Cash', icon: Wallet, roles: ['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT', 'CASHIER'] },
-        { key: 'reports', label: 'Reports & GST', icon: BarChart3, roles: ['ADMIN', 'SHOP_OWNER', 'ACCOUNTANT'] },
+        { key: 'expenses', label: 'Expenses & Cash', icon: Wallet, roles: ['SHOP_OWNER'] },
+        { key: 'reports', label: 'Reports & GST', icon: BarChart3, roles: ['SHOP_OWNER'] },
       ],
     },
     {
       title: 'Administration',
       items: [
-        { key: 'settings', label: 'Shop Profile & DL', icon: SettingsIcon, roles: ['ADMIN', 'SHOP_OWNER'] },
-        { key: 'users', label: 'Staff & Audit Logs', icon: ShieldCheck, roles: ['ADMIN', 'SHOP_OWNER'] },
+        { key: 'settings', label: 'Shop Profile & DL', icon: SettingsIcon, roles: ['SHOP_OWNER'] },
+        { key: 'users', label: 'Owner & Security Logs', icon: ShieldCheck, roles: ['SHOP_OWNER'] },
       ],
     },
   ];

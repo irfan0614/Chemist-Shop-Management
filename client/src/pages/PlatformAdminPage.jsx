@@ -210,19 +210,23 @@ export function PlatformAdminPage({ onSwitchShop }) {
   };
 
   // Filtered list
-  const filteredShops = shops.filter((s) => {
-    const matchesSearch =
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      (s.owner_name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (s.owner_email || '').toLowerCase().includes(search.toLowerCase()) ||
-      (s.gstin || '').toLowerCase().includes(search.toLowerCase()) ||
-      (s.city || '').toLowerCase().includes(search.toLowerCase());
+  const filteredShops = Array.isArray(shops)
+    ? shops.filter((s) => {
+        const nameStr = s.name || s.shop_name || '';
+        const matchesSearch =
+          nameStr.toLowerCase().includes(search.toLowerCase()) ||
+          (s.owner_name || '').toLowerCase().includes(search.toLowerCase()) ||
+          (s.owner_email || s.ownerEmail || '').toLowerCase().includes(search.toLowerCase()) ||
+          (s.gstin || '').toLowerCase().includes(search.toLowerCase()) ||
+          (s.city || '').toLowerCase().includes(search.toLowerCase());
 
-    const matchesPlan = planFilter === 'ALL' || s.plan === planFilter;
-    const matchesStatus = statusFilter === 'ALL' || s.status === statusFilter;
+        const shopPlan = s.plan || s.subscription_plan || 'PRO';
+        const matchesPlan = planFilter === 'ALL' || shopPlan === planFilter;
+        const matchesStatus = statusFilter === 'ALL' || (s.status || 'ACTIVE') === statusFilter;
 
-    return matchesSearch && matchesPlan && matchesStatus;
-  });
+        return matchesSearch && matchesPlan && matchesStatus;
+      })
+    : [];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -269,10 +273,10 @@ export function PlatformAdminPage({ onSwitchShop }) {
             </div>
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Registered Shops</div>
-              <div className="text-2xl font-black text-slate-800">{stats.totalShops}</div>
+              <div className="text-2xl font-black text-slate-800">{stats.totalShops || 0}</div>
               <div className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{stats.activeShops} Active Stores</span>
+                <span>{stats.activeShops || 0} Active Stores</span>
               </div>
             </div>
           </div>
@@ -283,8 +287,12 @@ export function PlatformAdminPage({ onSwitchShop }) {
             </div>
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Platform Gross Sales</div>
-              <div className="text-2xl font-black text-slate-800">₹{stats.totalPlatformSales.toLocaleString('en-IN')}</div>
-              <div className="text-[11px] font-semibold text-slate-500">{stats.totalBills} Total Invoices</div>
+              <div className="text-2xl font-black text-slate-800">
+                ₹{Number(stats.totalPlatformSales || stats.totalSalesVolume || 0).toLocaleString('en-IN')}
+              </div>
+              <div className="text-[11px] font-semibold text-slate-500">
+                {stats.totalBills || 0} Total Invoices
+              </div>
             </div>
           </div>
 
@@ -293,9 +301,9 @@ export function PlatformAdminPage({ onSwitchShop }) {
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Pharmacists & Staff</div>
-              <div className="text-2xl font-black text-slate-800">{stats.totalUsers}</div>
-              <div className="text-[11px] font-semibold text-slate-500">Across All Medical Outlets</div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Shop Owners</div>
+              <div className="text-2xl font-black text-slate-800">{stats.totalUsers || 0}</div>
+              <div className="text-[11px] font-semibold text-slate-500">Registered Shop Accounts</div>
             </div>
           </div>
 
@@ -305,7 +313,7 @@ export function PlatformAdminPage({ onSwitchShop }) {
             </div>
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Compliance & Licenses</div>
-              <div className="text-2xl font-black text-slate-800">{stats.licenseExpiringSoon}</div>
+              <div className="text-2xl font-black text-slate-800">{stats.licenseExpiringSoon || 0}</div>
               <div className="text-[11px] font-semibold text-rose-600 flex items-center gap-1">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>Licenses Expiring &lt; 90d</span>
@@ -369,7 +377,7 @@ export function PlatformAdminPage({ onSwitchShop }) {
                 <th className="py-3.5 px-4">Owner & Contact</th>
                 <th className="py-3.5 px-4">Drug Licenses (20B/21B)</th>
                 <th className="py-3.5 px-4">Subscription Plan</th>
-                <th className="py-3.5 px-4">Sales & Staff</th>
+                <th className="py-3.5 px-4">Sales & Invoices</th>
                 <th className="py-3.5 px-4">Status</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
@@ -392,11 +400,11 @@ export function PlatformAdminPage({ onSwitchShop }) {
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-md shadow-indigo-900/20">
-                            {shop.name.charAt(0).toUpperCase()}
+                            {(shop.name || shop.shop_name || 'M').charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
                             <div className="font-bold text-slate-900 text-xs truncate max-w-[200px]">
-                              {shop.name}
+                              {shop.name || shop.shop_name || 'Medical Store'}
                             </div>
                             <div className="text-[11px] text-slate-500 flex items-center gap-1">
                               <MapPin className="w-3 h-3 text-slate-400" />
@@ -475,7 +483,7 @@ export function PlatformAdminPage({ onSwitchShop }) {
                             ₹{(shop.totalSales || 0).toLocaleString('en-IN')}
                           </div>
                           <div className="text-[10px] text-slate-500">
-                            {shop.totalInvoices || 0} bills • {shop.staffCount || 1} staff
+                            {shop.totalInvoices || 0} bills • Owner Managed
                           </div>
                         </div>
                       </td>

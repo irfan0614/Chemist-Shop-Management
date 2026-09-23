@@ -131,7 +131,7 @@ router.get('/fefo/:medicineId', authMiddleware, (req, res) => {
 });
 
 // POST /api/batches - Add a new batch manually
-router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_MGR']), (req, res) => {
+router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const { medicineId, batchNo, mfgDate, expiryDate, purchaseCost, mrp, sellingPrice, currentStock, rackShelf } = req.body;
 
   if (!medicineId || !batchNo || !expiryDate || currentStock === undefined) {
@@ -178,7 +178,7 @@ router.post('/', authMiddleware, requireRole(['ADMIN', 'PHARMACIST', 'INVENTORY_
 });
 
 // PUT /api/batches/:id/adjust-stock - Stock adjustment (Physical audit verification)
-router.put('/:id/adjust-stock', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR', 'PHARMACIST']), (req, res) => {
+router.put('/:id/adjust-stock', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const batch = memStore.batches.find((b) => b.id === req.params.id);
   if (!batch) return res.status(404).json({ error: 'Batch not found' });
 
@@ -215,7 +215,7 @@ router.put('/:id/adjust-stock', authMiddleware, requireRole(['ADMIN', 'INVENTORY
 });
 
 // PUT /api/batches/:id/toggle-block - Block or unblock batch
-router.put('/:id/toggle-block', authMiddleware, requireRole(['ADMIN', 'PHARMACIST']), (req, res) => {
+router.put('/:id/toggle-block', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const batch = memStore.batches.find((b) => b.id === req.params.id);
   if (!batch) return res.status(404).json({ error: 'Batch not found' });
 

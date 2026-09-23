@@ -290,7 +290,7 @@ router.put('/:id', authMiddleware, (req, res) => {
 });
 
 // DELETE /api/medicines/:id
-router.delete('/:id', authMiddleware, requireRole(['ADMIN', 'INVENTORY_MGR']), (req, res) => {
+router.delete('/:id', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const index = memStore.medicines.findIndex((m) => m.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: 'Medicine not found' });
 

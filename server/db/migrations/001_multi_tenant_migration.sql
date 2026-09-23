@@ -83,12 +83,12 @@ ON CONFLICT (slug) DO NOTHING;
 -- 3. Update USERS Table for Multi-Tenancy & Platform Admin
 ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id UUID REFERENCES shops(id) ON DELETE CASCADE;
 
--- Update role check constraint safely if needed
+-- Update role check constraint strictly to SUPER_ADMIN and SHOP_OWNER
 DO $$
 BEGIN
   ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
   ALTER TABLE users ADD CONSTRAINT users_role_check 
-    CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER', 'ADMIN', 'PHARMACIST', 'CASHIER', 'INVENTORY_MGR', 'ACCOUNTANT'));
+    CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER'));
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 

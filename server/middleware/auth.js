@@ -61,28 +61,29 @@ function tenantShopId(req) {
   return req.user.shop_id || '11111111-1111-1111-1111-111111111111';
 }
 
-function requireRole(allowedRoles = []) {
+function requireRole(allowedRoles = ['SHOP_OWNER', 'SUPER_ADMIN']) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    // Super admin has universal access
-    if (req.user.role === 'SUPER_ADMIN') {
+    // Super Admin and Shop Owner have full tenant access
+    if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'SHOP_OWNER' || req.user.role === 'ADMIN') {
       return next();
     }
-    // Shop owner is considered equivalent to ADMIN for tenant operations
-    const userRole = req.user.role;
-    const isAllowed = allowedRoles.length === 0 ||
-      allowedRoles.includes(userRole) ||
-      (allowedRoles.includes('ADMIN') && (userRole === 'SHOP_OWNER' || userRole === 'ADMIN'));
-
-    if (!isAllowed) {
-      return res.status(403).json({
-        error: `Access denied. Requires one of roles: ${allowedRoles.join(', ')}`,
-      });
-    }
-    next();
+    return res.status(403).json({
+      error: `Access denied. Shop Owner authorization required.`,
+    });
   };
+}
+
+function requireShopOwner(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'SHOP_OWNER' || req.user.role === 'ADMIN') {
+    return next();
+  }
+  return res.status(403).json({ error: 'Shop Owner authorization required' });
 }
 
 function requireSuperAdmin(req, res, next) {
@@ -99,6 +100,7 @@ module.exports = {
   authMiddleware,
   tenantShopId,
   requireRole,
+  requireShopOwner,
   requireSuperAdmin,
 };
 

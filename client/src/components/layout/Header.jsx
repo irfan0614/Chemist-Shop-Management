@@ -119,7 +119,7 @@ export function Header({ setView, onOpenShortcuts }) {
                 isSuperAdmin ? 'text-indigo-600 font-black' : 'text-emerald-600'
               }`}
             >
-              {user?.role || 'PHARMACIST'}
+              {user?.role || (isSuperAdmin ? 'SUPER_ADMIN' : 'SHOP_OWNER')}
             </div>
           </div>
           <button

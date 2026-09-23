@@ -10,7 +10,7 @@ router.get('/sales', (req, res) => {
 });
 
 // POST /api/returns/sales - Process customer sales return
-router.post('/sales', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'PHARMACIST', 'CASHIER']), (req, res) => {
+router.post('/sales', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const { invoiceNo, items, refundMode = 'CASH', reason } = req.body;
 
@@ -116,7 +116,7 @@ router.get('/purchases', (req, res) => {
 });
 
 // POST /api/returns/purchases - Return damaged/expired medicines to supplier (Debit Note)
-router.post('/purchases', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER', 'INVENTORY_MGR']), (req, res) => {
+router.post('/purchases', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
   const shopId = tenantShopId(req);
   const { supplierId, items, reason } = req.body;
 

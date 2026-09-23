@@ -23,8 +23,6 @@ router.post('/login', async (req, res) => {
     password === 'superadmin123' ||
     password === 'admin123' ||
     password === 'owner123' ||
-    password === 'pharmacist123' ||
-    password === 'cashier123' ||
     (user.password_hash && bcrypt.compareSync(password, user.password_hash));
 
   if (!isValid) {
@@ -67,6 +65,7 @@ router.post('/login', async (req, res) => {
       phone: user.phone,
       shop_id: user.shop_id,
       is_super_admin: user.role === 'SUPER_ADMIN',
+      is_shop_owner: user.role === 'SHOP_OWNER' || user.role === 'ADMIN',
       shop: shop
         ? {
             id: shop.id,
@@ -98,6 +97,7 @@ router.get('/me', authMiddleware, (req, res) => {
     phone: user.phone,
     shop_id: user.shop_id,
     is_super_admin: user.role === 'SUPER_ADMIN',
+    is_shop_owner: user.role === 'SHOP_OWNER' || user.role === 'ADMIN',
     shop: shop
       ? {
           id: shop.id,
@@ -116,7 +116,7 @@ router.get('/me', authMiddleware, (req, res) => {
 });
 
 // GET /api/auth/users (Scoped by authenticated shop for Shop Owners / Admins)
-router.get('/users', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER']), (req, res) => {
+router.get('/users', authMiddleware, requireRole(['SHOP_OWNER', 'SUPER_ADMIN']), (req, res) => {
   const currentShopId = tenantShopId(req);
   let usersList = memStore.users;
 
@@ -141,16 +141,11 @@ router.get('/users', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER']), (req,
   );
 });
 
-// POST /api/auth/users (Add staff account scoped to caller's shop)
-router.post('/users', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER']), (req, res) => {
-  const { name, email, password, role, phone } = req.body;
-  if (!name || !email || !password || !role) {
-    return res.status(400).json({ error: 'Name, email, password, and role are required' });
-  }
-
-  // Shop Owner cannot create Platform Super Admin
-  if (role.toUpperCase() === 'SUPER_ADMIN' && req.user.role !== 'SUPER_ADMIN') {
-    return res.status(403).json({ error: 'Cannot create Super Admin accounts' });
+// POST /api/auth/users (Add Shop Owner account for shop)
+router.post('/users', authMiddleware, requireRole(['SHOP_OWNER', 'SUPER_ADMIN']), (req, res) => {
+  const { name, email, password, phone } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Name, email, and password are required' });
   }
 
   const cleanEmail = email.trim().toLowerCase();
@@ -165,7 +160,7 @@ router.post('/users', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER']), (req
     full_name: name.trim(),
     email: cleanEmail,
     password_hash: bcrypt.hashSync(password, 10),
-    role: role.toUpperCase(),
+    role: 'SHOP_OWNER',
     phone: phone || '',
     shop_id: targetShopId,
     is_active: true,
