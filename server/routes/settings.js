@@ -3,6 +3,8 @@ const { memStore } = require('../db/pool');
 const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
+router.use(authMiddleware);
+
 // GET /api/settings (Gets current shop's settings)
 router.get('/', authMiddleware, (req, res) => {
   const shopId = tenantShopId(req) || '11111111-1111-1111-1111-111111111111';

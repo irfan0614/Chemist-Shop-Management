@@ -3,6 +3,8 @@ const { memStore } = require('../db/pool');
 const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
+router.use(authMiddleware);
+
 // GET /api/expenses
 router.get('/', (req, res) => {
   const shopId = tenantShopId(req);

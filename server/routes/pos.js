@@ -3,6 +3,8 @@ const { memStore } = require('../db/pool');
 const { authMiddleware, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
+router.use(authMiddleware);
+
 let heldBills = [];
 
 // GET /api/pos/bills - Sales history scoped to tenant shop

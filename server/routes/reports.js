@@ -1,7 +1,9 @@
 const express = require('express');
 const { memStore } = require('../db/pool');
-const { tenantShopId } = require('../middleware/auth');
+const { authMiddleware, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
+
+router.use(authMiddleware);
 
 function getDaysUntil(dateStr) {
   const today = new Date();

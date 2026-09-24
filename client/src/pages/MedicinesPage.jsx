@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, Filter, Package, AlertCircle, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Filter, Package, AlertCircle, Search, UploadCloud, FileSpreadsheet, Download } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
 import { Badge, DrugScheduleBadge } from '../components/common/Badge';
 import { fmtMoney, fmtDate } from '../utils/formatters';
+import { BulkMedicineExcelModal } from '../components/medicines/BulkMedicineExcelModal';
+import { triggerExcelTemplateDownload, exportMedicinesToExcel } from '../utils/excelParser';
 
 export function MedicinesPage() {
   const [medicines, setMedicines] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalMode, setModalMode] = useState(null); // null | 'add' | 'edit'
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [selectedMed, setSelectedMed] = useState(null);
   const [filterSchedule, setFilterSchedule] = useState('ALL');
   const [filterCategory, setFilterCategory] = useState('');
@@ -285,6 +288,37 @@ export function MedicinesPage() {
             ))}
           </select>
 
+          {/* Excel Template & Export Controls */}
+          <button
+            type="button"
+            onClick={triggerExcelTemplateDownload}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all border border-slate-200/80"
+            title="Download formatted Excel template for bulk uploading"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Template</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => exportMedicinesToExcel(filteredMedicines)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all border border-slate-200/80"
+            title="Export filtered medicines to Excel (.xls)"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export Excel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsExcelModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold rounded-xl text-xs shadow-sm transition-all"
+            title="Upload bulk medicines via Excel or CSV"
+          >
+            <UploadCloud className="w-4 h-4 text-indigo-600" />
+            <span>Bulk Upload Excel</span>
+          </button>
+
           <button
             onClick={handleOpenAdd}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
@@ -540,6 +574,13 @@ export function MedicinesPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Bulk Medicine Excel Import Modal */}
+      <BulkMedicineExcelModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        onSuccess={loadData}
+      />
     </div>
   );
 }
