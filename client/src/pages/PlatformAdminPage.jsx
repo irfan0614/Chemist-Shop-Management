@@ -33,6 +33,10 @@ export function PlatformAdminPage({ onSwitchShop }) {
   const [stats, setStats] = useState(null);
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [registering, setRegistering] = useState(false);
+  const [updatingShop, setUpdatingShop] = useState(false);
+  const [resettingPw, setResettingPw] = useState(false);
+  const [togglingShopId, setTogglingShopId] = useState(null);
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -111,6 +115,7 @@ export function PlatformAdminPage({ onSwitchShop }) {
 
   const handleRegisterShop = async (e) => {
     e.preventDefault();
+    setRegistering(true);
     try {
       const res = await api.post('/platform/shops', newShopForm);
       const savedName = res?.shop?.name || res?.shop_name || res?.name || newShopForm.name;
@@ -141,6 +146,8 @@ export function PlatformAdminPage({ onSwitchShop }) {
       loadPlatformData();
     } catch (err) {
       showError(err.message || 'Failed to register shop');
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -168,6 +175,7 @@ export function PlatformAdminPage({ onSwitchShop }) {
   const handleUpdateShop = async (e) => {
     e.preventDefault();
     if (!selectedShop) return;
+    setUpdatingShop(true);
     try {
       await api.put(`/platform/shops/${selectedShop.id}`, editForm);
       showSuccess(`Updated medical shop settings for ${editForm.name}`);
@@ -175,18 +183,23 @@ export function PlatformAdminPage({ onSwitchShop }) {
       loadPlatformData();
     } catch (err) {
       showError(err.message || 'Failed to update shop');
+    } finally {
+      setUpdatingShop(false);
     }
   };
 
   const handleToggleStatus = async (shop) => {
     const action = shop.status === 'ACTIVE' ? 'deactivate / suspend' : 'activate';
     if (!window.confirm(`Are you sure you want to ${action} "${shop.name}"?`)) return;
+    setTogglingShopId(shop.id);
     try {
       const res = await api.post(`/platform/shops/${shop.id}/toggle-status`, {});
       showSuccess(`Shop "${shop.name}" is now ${res.status}`);
       loadPlatformData();
     } catch (err) {
       showError(err.message || 'Failed to change shop status');
+    } finally {
+      setTogglingShopId(null);
     }
   };
 
@@ -199,6 +212,7 @@ export function PlatformAdminPage({ onSwitchShop }) {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (!selectedShop || !newPassword) return;
+    setResettingPw(true);
     try {
       const res = await api.post(`/platform/shops/${selectedShop.id}/reset-owner-password`, {
         new_password: newPassword,
@@ -208,6 +222,8 @@ export function PlatformAdminPage({ onSwitchShop }) {
       loadPlatformData();
     } catch (err) {
       showError(err.message || 'Failed to reset password');
+    } finally {
+      setResettingPw(false);
     }
   };
 
@@ -530,6 +546,7 @@ export function PlatformAdminPage({ onSwitchShop }) {
                             size="icon-sm"
                             variant="ghost"
                             onClick={() => handleToggleStatus(shop)}
+                            loading={togglingShopId === shop.id}
                             className={
                               shop.status === 'ACTIVE'
                                 ? 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
@@ -766,6 +783,8 @@ export function PlatformAdminPage({ onSwitchShop }) {
                 <Button
                   type="submit"
                   variant="gradient"
+                  loading={registering}
+                  loadingText="Registering Medical Shop..."
                 >
                   Confirm & Register Medical Shop
                 </Button>
@@ -881,6 +900,8 @@ export function PlatformAdminPage({ onSwitchShop }) {
                 <Button
                   type="submit"
                   variant="indigo"
+                  loading={updatingShop}
+                  loadingText="Saving Changes..."
                 >
                   Save Changes
                 </Button>
@@ -939,6 +960,8 @@ export function PlatformAdminPage({ onSwitchShop }) {
                 <Button
                   type="submit"
                   variant="warning"
+                  loading={resettingPw}
+                  loadingText="Resetting Password..."
                 >
                   Reset Password
                 </Button>

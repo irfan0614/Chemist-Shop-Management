@@ -7,6 +7,7 @@ import { Button } from '../components/common/Button';
 export function SettingsPage() {
   const { settings, updateSettings } = useShop();
   const { showSuccess, showError } = useToast();
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState(settings);
 
@@ -15,11 +16,14 @@ export function SettingsPage() {
   }, [settings]);
 
   const handleSave = async () => {
+    setSaving(true);
     try {
       await updateSettings(form);
       showSuccess('Pharmacy settings and compliance numbers updated successfully!');
     } catch (err) {
       showError('Failed to save settings: ' + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -35,7 +39,8 @@ export function SettingsPage() {
           onClick={handleSave}
           variant="primary"
           icon={Save}
-          loadingText="Saving…"
+          loading={saving}
+          loadingText="Saving Settings…"
           className="shrink-0"
         >
           Save Settings

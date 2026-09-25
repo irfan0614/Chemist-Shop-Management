@@ -13,6 +13,7 @@ export function PrescriptionsPage() {
   const [scheduleH1List, setScheduleH1List] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const { showSuccess, showError } = useToast();
 
@@ -53,6 +54,7 @@ export function PrescriptionsPage() {
       return;
     }
 
+    setSaving(true);
     try {
       const res = await api.post('/prescriptions', form);
       showSuccess(`Prescription #${res.prescription_no} recorded successfully!`);
@@ -60,6 +62,8 @@ export function PrescriptionsPage() {
       loadData();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -343,6 +347,8 @@ export function PrescriptionsPage() {
             <Button
               variant="primary"
               onClick={handleSavePrescription}
+              loading={saving}
+              loadingText="Saving Prescription…"
             >
               Save Prescription
             </Button>

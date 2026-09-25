@@ -13,6 +13,8 @@ export function ExpensesPage() {
   const [categories, setCategories] = useState([]);
   const [cashRegister, setCashRegister] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCloseDrawerModalOpen, setIsCloseDrawerModalOpen] = useState(false);
   const [countedCash, setCountedCash] = useState('');
@@ -57,6 +59,7 @@ export function ExpensesPage() {
       return;
     }
 
+    setSaving(true);
     try {
       await api.post('/expenses', form);
       showSuccess(`Expense "${form.title}" recorded successfully!`);
@@ -65,6 +68,8 @@ export function ExpensesPage() {
       loadData();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -75,6 +80,7 @@ export function ExpensesPage() {
       return;
     }
 
+    setClosing(true);
     try {
       const res = await api.post('/expenses/cash-register/close', {
         countedClosingCash: counted,
@@ -85,6 +91,8 @@ export function ExpensesPage() {
       loadData();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setClosing(false);
     }
   };
 
@@ -281,6 +289,8 @@ export function ExpensesPage() {
             <Button
               variant="primary"
               onClick={handleSaveExpense}
+              loading={saving}
+              loadingText="Saving Voucher…"
             >
               Save Expense Voucher
             </Button>
@@ -334,6 +344,8 @@ export function ExpensesPage() {
             <Button
               variant="dark"
               onClick={handleCloseDrawer}
+              loading={closing}
+              loadingText="Closing Cash Register…"
             >
               Confirm Day End Close
             </Button>

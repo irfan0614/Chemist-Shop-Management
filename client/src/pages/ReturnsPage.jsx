@@ -22,6 +22,8 @@ export function ReturnsPage() {
   const [returnItems, setReturnItems] = useState({}); // { [medicineId_batchId]: returnQty }
   const [refundMode, setRefundMode] = useState('CASH');
   const [returnReason, setReturnReason] = useState('Customer unused / unneeded medicine');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [processingReturn, setProcessingReturn] = useState(false);
 
   const loadReturns = useCallback(async () => {
     setLoading(true);
@@ -45,6 +47,7 @@ export function ReturnsPage() {
 
   const handleLookupInvoice = async () => {
     if (!invoiceSearch.trim()) return;
+    setLookingUp(true);
     try {
       const inv = await api.get(`/pos/bills/${invoiceSearch.trim()}`);
       setFoundInvoice(inv);
@@ -56,6 +59,8 @@ export function ReturnsPage() {
     } catch (err) {
       showError(`Original invoice "${invoiceSearch}" not found`);
       setFoundInvoice(null);
+    } finally {
+      setLookingUp(false);
     }
   };
 
@@ -81,6 +86,7 @@ export function ReturnsPage() {
       return;
     }
 
+    setProcessingReturn(true);
     try {
       const res = await api.post('/returns/sales', {
         invoiceNo: foundInvoice.invoice_no,
@@ -96,6 +102,8 @@ export function ReturnsPage() {
       loadReturns();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setProcessingReturn(false);
     }
   };
 
@@ -251,6 +259,8 @@ export function ReturnsPage() {
             <Button
               variant="primary"
               onClick={handleLookupInvoice}
+              loading={lookingUp}
+              loadingText="Looking up…"
               icon={Search}
             >
               Lookup Invoice
@@ -342,6 +352,8 @@ export function ReturnsPage() {
                 <Button
                   variant="primary"
                   onClick={handleProcessSalesReturn}
+                  loading={processingReturn}
+                  loadingText="Processing Refund…"
                 >
                   Confirm Restock & Refund
                 </Button>

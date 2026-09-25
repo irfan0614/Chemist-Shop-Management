@@ -53,6 +53,8 @@ export function POSBillingPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [heldBills, setHeldBills] = useState([]);
   const [processing, setProcessing] = useState(false);
+  const [holding, setHolding] = useState(false);
+  const [resumingId, setResumingId] = useState(null);
 
   // Payment State
   const [paymentMode, setPaymentMode] = useState('CASH'); // CASH, UPI, CARD, CREDIT, SPLIT
@@ -271,6 +273,7 @@ export function POSBillingPage() {
       showWarn('Cannot park an empty cart');
       return;
     }
+    setHolding(true);
     try {
       await api.post('/pos/hold', {
         cart,
@@ -291,11 +294,14 @@ export function POSBillingPage() {
       setHeldBills(held);
     } catch (err) {
       showError('Failed to hold bill: ' + err.message);
+    } finally {
+      setHolding(false);
     }
   };
 
   // Resume Bill
   const handleResumeBill = async (heldId) => {
+    setResumingId(heldId);
     try {
       const held = await api.del(`/pos/held/${heldId}`);
       if (held) {
@@ -311,6 +317,8 @@ export function POSBillingPage() {
       }
     } catch (err) {
       showError('Failed to resume bill: ' + err.message);
+    } finally {
+      setResumingId(null);
     }
   };
 
@@ -429,6 +437,7 @@ export function POSBillingPage() {
                     key={h.id}
                     size="xs"
                     variant="warning"
+                    loading={resumingId === h.id}
                     onClick={() => handleResumeBill(h.id)}
                     className="shrink-0"
                   >
@@ -442,6 +451,8 @@ export function POSBillingPage() {
           <Button
             onClick={handleHoldBill}
             disabled={cart.length === 0}
+            loading={holding}
+            loadingText="Parking…"
             variant="secondary"
             size="sm"
             icon={PauseCircle}

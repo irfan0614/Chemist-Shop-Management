@@ -79,6 +79,20 @@ async function initDb() {
         await client.query(migrationSql);
       }
 
+      // Ensure missing shop columns exist
+      await client.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'shops') THEN
+            ALTER TABLE shops ADD COLUMN IF NOT EXISTS default_low_stock_threshold INT NOT NULL DEFAULT 15;
+            ALTER TABLE shops ADD COLUMN IF NOT EXISTS default_expiry_alert_days INT NOT NULL DEFAULT 90;
+            ALTER TABLE shops ADD COLUMN IF NOT EXISTS debit_note_prefix TEXT NOT NULL DEFAULT 'DBN';
+            ALTER TABLE shops ADD COLUMN IF NOT EXISTS debit_note_counter INT NOT NULL DEFAULT 1;
+          END IF;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END $$;
+      `);
+
       // 3. Ensure super admin user exists with valid bcrypt hash
       const defaultHash = bcrypt.hashSync('superadmin123', 10);
       await client.query(

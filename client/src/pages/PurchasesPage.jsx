@@ -13,6 +13,7 @@ export function PurchasesPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [medicines, setMedicines] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewInvoice, setViewInvoice] = useState(null);
   const { showSuccess, showError } = useToast();
@@ -137,6 +138,7 @@ export function PurchasesPage() {
       return;
     }
 
+    setSaving(true);
     try {
       const payload = {
         supplierId,
@@ -156,6 +158,8 @@ export function PurchasesPage() {
       loadData();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -488,6 +492,8 @@ export function PurchasesPage() {
             <Button
               variant="primary"
               onClick={handleSavePurchase}
+              loading={saving}
+              loadingText="Recording Inward Purchase…"
             >
               Save Inward Purchase
             </Button>

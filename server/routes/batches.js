@@ -22,6 +22,31 @@ function getBatchStatus(expiryDate, currentStock, reorderLevel = 15) {
   return { status, daysLeft: days, isLowStock };
 }
 
+// GET /api/batches/fefo/:medicineId - FEFO ordered batches for a medicine
+router.get('/fefo/:medicineId', async (req, res) => {
+  try {
+    const currentShopId = tenantShopId(req);
+    const { rows } = await query(
+      `SELECT b.id, b.medicine_id as "medicineId", b.batch_no as "batchNo",
+              b.mfg_date as "mfgDate", b.expiry_date as "expiryDate",
+              b.purchase_cost::float as "purchaseCost", b.mrp::float as mrp,
+              b.selling_price::float as "sellingPrice", b.current_stock as "currentStock",
+              b.rack_shelf as "rackShelf", b.is_blocked as "isBlocked"
+       FROM medicine_batches b
+       WHERE b.medicine_id = $1 
+         AND ($2::uuid IS NULL OR b.shop_id = $2 OR b.shop_id IS NULL)
+         AND b.is_blocked = false 
+         AND b.current_stock > 0
+       ORDER BY b.expiry_date ASC`,
+      [req.params.medicineId, currentShopId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Get FEFO batches error:', err);
+    res.status(500).json({ error: 'Failed to retrieve batches: ' + err.message });
+  }
+});
+
 // GET /api/batches - List all batches with filters (Database Driven)
 router.get('/', async (req, res) => {
   try {
@@ -40,14 +65,9 @@ router.get('/', async (req, res) => {
              m.reorder_level as "reorderLevel"
       FROM medicine_batches b
       JOIN medicines m ON b.medicine_id = m.id
-      WHERE 1=1
+      WHERE ($1::uuid IS NULL OR b.shop_id = $1 OR b.shop_id IS NULL)
     `;
-    const params = [];
-
-    if (currentShopId) {
-      params.push(currentShopId);
-      sql += ` AND b.shop_id = $${params.length}`;
-    }
+    const params = [currentShopId];
 
     if (medicineId) {
       params.push(medicineId);
@@ -103,8 +123,102 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PUT /api/batches/:id/stock - Stock Adjustment with Audit
-router.put('/:id/stock', requireRole(['SHOP_OWNER', 'ADMIN']), async (req, res) => {
+// POST /api/batches - Direct Inward / Add Batch for a medicine
+router.post('/', requireRole(['SHOP_OWNER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+  const currentShopId = tenantShopId(req);
+  const {
+    medicine_id,
+    medicineId = medicine_id,
+    batch_no,
+    batchNo = batch_no,
+    mfg_date,
+    mfgDate = mfg_date,
+    expiry_date,
+    expiryDate = expiry_date,
+    purchase_cost,
+    purchaseCost = purchase_cost,
+    mrp,
+    selling_price,
+    sellingPrice = selling_price,
+    current_stock,
+    currentStock = current_stock,
+    rack_shelf,
+    rackShelf = rack_shelf,
+  } = req.body;
+
+  if (!medicineId) {
+    return res.status(400).json({ error: 'Medicine is required' });
+  }
+  if (!batchNo || !batchNo.trim()) {
+    return res.status(400).json({ error: 'Batch Number is required' });
+  }
+  if (!expiryDate) {
+    return res.status(400).json({ error: 'Expiry Date is required' });
+  }
+
+  const client = await connect();
+  try {
+    await client.query('BEGIN');
+
+    const cleanShopId = currentShopId && String(currentShopId).trim() !== '' ? String(currentShopId).trim() : null;
+    const stock = parseInt(currentStock) || 0;
+    const cost = parseFloat(purchaseCost) || 0;
+    const mrpVal = parseFloat(mrp) || 0;
+    const sellVal = parseFloat(sellingPrice) || mrpVal;
+
+    const { rows } = await client.query(
+      `INSERT INTO medicine_batches (
+        shop_id, medicine_id, batch_no, mfg_date, expiry_date,
+        purchase_cost, mrp, selling_price, current_stock, rack_shelf, is_blocked
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
+      ON CONFLICT (medicine_id, batch_no) DO UPDATE SET
+        current_stock = medicine_batches.current_stock + EXCLUDED.current_stock,
+        expiry_date = EXCLUDED.expiry_date,
+        mrp = EXCLUDED.mrp,
+        purchase_cost = EXCLUDED.purchase_cost,
+        selling_price = EXCLUDED.selling_price,
+        rack_shelf = COALESCE(NULLIF(EXCLUDED.rack_shelf, ''), medicine_batches.rack_shelf),
+        updated_at = now()
+      RETURNING *`,
+      [
+        cleanShopId,
+        medicineId,
+        batchNo.trim(),
+        mfgDate || null,
+        expiryDate,
+        cost,
+        mrpVal,
+        sellVal,
+        stock,
+        rackShelf ? rackShelf.trim() : 'Rack A-1',
+      ]
+    );
+
+    const createdBatch = rows[0];
+
+    if (stock > 0) {
+      await client.query(
+        `INSERT INTO stock_movements (
+          shop_id, medicine_id, batch_id, movement_type, quantity,
+          balance_after, reference_no, notes
+        ) VALUES ($1, $2, $3, 'BATCH_ADD', $4, $5, 'DIRECT_BATCH_ENTRY', 'Direct batch inward entry')`,
+        [cleanShopId, medicineId, createdBatch.id, stock, stock]
+      ).catch(() => {});
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json(createdBatch);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Create batch error:', err);
+    res.status(500).json({ error: 'Failed to create batch: ' + err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// PUT /api/batches/:id/stock or /api/batches/:id/adjust-stock - Stock Adjustment with Audit
+router.put(['/:id/stock', '/:id/adjust-stock'], requireRole(['SHOP_OWNER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
   const currentShopId = tenantShopId(req);
   const { newStock, reason = 'Physical Count Adjustment', notes = '' } = req.body;
 
@@ -159,6 +273,7 @@ router.put('/:id/stock', requireRole(['SHOP_OWNER', 'ADMIN']), async (req, res) 
       message: 'Batch stock adjusted successfully',
       batch: updatedRows[0],
       previousStock: prevStock,
+      oldStock: prevStock,
       newStock: targetStock,
     });
   } catch (err) {

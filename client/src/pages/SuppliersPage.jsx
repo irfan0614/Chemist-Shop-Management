@@ -16,6 +16,8 @@ export function SuppliersPage() {
   const [payAmount, setPayAmount] = useState('');
   const [payMode, setPayMode] = useState('NEFT/RTGS');
   const [payRef, setPayRef] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [paying, setPaying] = useState(false);
   const { showSuccess, showError } = useToast();
 
   const [form, setForm] = useState({
@@ -56,6 +58,7 @@ export function SuppliersPage() {
       return;
     }
 
+    setSaving(true);
     try {
       await api.post('/suppliers', form);
       showSuccess(`Supplier "${form.companyName || form.name}" registered successfully!`);
@@ -78,6 +81,8 @@ export function SuppliersPage() {
       loadSuppliers();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -89,6 +94,7 @@ export function SuppliersPage() {
       return;
     }
 
+    setPaying(true);
     try {
       const res = await api.post(`/suppliers/${paySupplier.id}/pay`, {
         amount,
@@ -102,6 +108,8 @@ export function SuppliersPage() {
       loadSuppliers();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -299,6 +307,8 @@ export function SuppliersPage() {
             <Button
               variant="primary"
               onClick={handleSaveSupplier}
+              loading={saving}
+              loadingText="Registering Supplier…"
             >
               Save Supplier
             </Button>
@@ -359,6 +369,8 @@ export function SuppliersPage() {
             <Button
               variant="primary"
               onClick={handleRecordPayment}
+              loading={paying}
+              loadingText="Recording Settlement…"
             >
               Confirm Settlement
             </Button>

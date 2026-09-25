@@ -60,15 +60,10 @@ router.get('/', authMiddleware, async (req, res) => {
              COUNT(b.id)::int as "batchCount"
       FROM medicines m
       LEFT JOIN categories c ON m.category_id = c.id
-      LEFT JOIN medicine_batches b ON b.medicine_id = m.id AND ($1::uuid IS NULL OR b.shop_id = $1)
-      WHERE m.is_active = true
+      LEFT JOIN medicine_batches b ON b.medicine_id = m.id AND ($1::uuid IS NULL OR b.shop_id = $1 OR b.shop_id IS NULL)
+      WHERE m.is_active = true AND ($1::uuid IS NULL OR m.shop_id = $1 OR m.shop_id IS NULL)
     `;
     const params = [currentShopId];
-
-    if (currentShopId) {
-      params.push(currentShopId);
-      sql += ` AND m.shop_id = $${params.length}`;
-    }
 
     if (search) {
       params.push(`%${search.trim().toLowerCase()}%`);
@@ -119,7 +114,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
       `SELECT m.*, c.name as "categoryName"
        FROM medicines m
        LEFT JOIN categories c ON m.category_id = c.id
-       WHERE m.id = $1 AND ($2::uuid IS NULL OR m.shop_id = $2)`,
+       WHERE m.id = $1 AND ($2::uuid IS NULL OR m.shop_id = $2 OR m.shop_id IS NULL)`,
       [req.params.id, currentShopId]
     );
 
@@ -131,7 +126,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
               purchase_cost as "purchaseCost", mrp, selling_price as "sellingPrice",
               current_stock as "currentStock", rack_shelf as "rackShelf", is_blocked as "isBlocked"
        FROM medicine_batches
-       WHERE medicine_id = $1 AND ($2::uuid IS NULL OR shop_id = $2)
+       WHERE medicine_id = $1 AND ($2::uuid IS NULL OR shop_id = $2 OR shop_id IS NULL)
        ORDER BY expiry_date ASC`,
       [med.id, currentShopId]
     );
@@ -181,14 +176,35 @@ router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN', 'SUPER_ADMI
     reorderLevel = reorder_level !== undefined ? reorder_level : 15,
     storage_temperature,
     storageTemperature = storage_temperature || 'Room Temperature',
+    batch_no,
+    batchNo = batch_no,
+    expiry_date,
+    expiryDate = expiry_date,
+    mfg_date,
+    mfgDate = mfg_date,
+    purchase_cost,
+    purchaseCost = purchase_cost,
+    mrp,
+    selling_price,
+    sellingPrice = selling_price,
+    initial_stock,
+    initialStock = initial_stock,
+    rack_shelf,
+    rackShelf = rack_shelf,
   } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Medicine commercial name is required' });
   }
 
+  const client = await connect();
   try {
-    const { rows } = await query(
+    await client.query('BEGIN');
+
+    const cleanCategoryId = categoryId && String(categoryId).trim() !== '' ? String(categoryId).trim() : null;
+    const cleanShopId = currentShopId && String(currentShopId).trim() !== '' ? String(currentShopId).trim() : null;
+
+    const { rows: medRows } = await client.query(
       `INSERT INTO medicines (
         shop_id, name, generic_name, brand, manufacturer, category_id,
         salt_composition, dosage_form, strength, pack_size, unit,
@@ -201,12 +217,12 @@ router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN', 'SUPER_ADMI
         $17, $18, true
       ) RETURNING *`,
       [
-        currentShopId,
+        cleanShopId,
         name.trim(),
         (genericName || '').trim(),
         brand ? brand.trim() : '',
         manufacturer ? manufacturer.trim() : '',
-        categoryId || null,
+        cleanCategoryId,
         saltComposition ? saltComposition.trim() : '',
         dosageForm,
         strength ? strength.trim() : '',
@@ -222,10 +238,66 @@ router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN', 'SUPER_ADMI
       ]
     );
 
-    res.status(201).json(rows[0]);
+    const createdMed = medRows[0];
+
+    // If initial batch details were provided, insert into medicine_batches
+    const bNo = (batchNo || '').trim();
+    const stock = parseInt(initialStock) || 0;
+    const mrpVal = parseFloat(mrp) || 0;
+    const costVal = parseFloat(purchaseCost) || 0;
+    const sellVal = parseFloat(sellingPrice) || mrpVal;
+
+    if (bNo || stock > 0 || mrpVal > 0) {
+      const finalBatchNo = bNo || ('OB-' + Math.floor(1000 + Math.random() * 9000));
+      const finalExpDate = expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const { rows: batchRows } = await client.query(
+        `INSERT INTO medicine_batches (
+          shop_id, medicine_id, batch_no, mfg_date, expiry_date,
+          purchase_cost, mrp, selling_price, current_stock, rack_shelf, is_blocked
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
+        ON CONFLICT (medicine_id, batch_no) DO UPDATE SET
+          current_stock = medicine_batches.current_stock + EXCLUDED.current_stock,
+          expiry_date = EXCLUDED.expiry_date,
+          mrp = EXCLUDED.mrp,
+          purchase_cost = EXCLUDED.purchase_cost,
+          selling_price = EXCLUDED.selling_price,
+          rack_shelf = COALESCE(NULLIF(EXCLUDED.rack_shelf, ''), medicine_batches.rack_shelf),
+          updated_at = now()
+        RETURNING *`,
+        [
+          cleanShopId,
+          createdMed.id,
+          finalBatchNo,
+          mfgDate || null,
+          finalExpDate,
+          costVal,
+          mrpVal,
+          sellVal,
+          stock,
+          (rackShelf || '').trim() || 'Rack A-1',
+        ]
+      );
+
+      if (stock > 0 && batchRows.length > 0) {
+        await client.query(
+          `INSERT INTO stock_movements (
+            shop_id, medicine_id, batch_id, movement_type, quantity,
+            balance_after, reference_no, notes
+          ) VALUES ($1, $2, $3, 'OPENING_STOCK', $4, $5, 'INITIAL_INWARD', 'Initial batch stock created with medicine')`,
+          [cleanShopId, createdMed.id, batchRows[0].id, stock, stock]
+        ).catch(() => {});
+      }
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json(createdMed);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Create medicine error:', err);
     res.status(500).json({ error: 'Failed to create medicine: ' + err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -264,6 +336,9 @@ router.put('/:id', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN', 'SUPER_AD
   } = req.body;
 
   try {
+    const cleanCategoryId = categoryId && String(categoryId).trim() !== '' ? String(categoryId).trim() : null;
+    const cleanShopId = currentShopId && String(currentShopId).trim() !== '' ? String(currentShopId).trim() : null;
+
     const { rows } = await query(
       `UPDATE medicines SET
         name = COALESCE($1, name),
@@ -291,21 +366,21 @@ router.put('/:id', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN', 'SUPER_AD
         genericName !== undefined ? genericName.trim() : null,
         brand !== undefined ? brand.trim() : null,
         manufacturer !== undefined ? manufacturer.trim() : null,
-        categoryId !== undefined ? categoryId : null,
+        cleanCategoryId,
         saltComposition !== undefined ? saltComposition.trim() : null,
         dosageForm || null,
         strength !== undefined ? strength.trim() : null,
-        packSize ? parseInt(packSize) : null,
+        packSize !== undefined && packSize !== '' ? parseInt(packSize) : null,
         unit || null,
         barcode !== undefined ? barcode.trim() : null,
         hsnCode || null,
-        gstRate !== undefined ? parseFloat(gstRate) : null,
+        gstRate !== undefined && gstRate !== '' ? parseFloat(gstRate) : null,
         scheduleType || null,
         isPrescriptionRequired !== undefined ? Boolean(isPrescriptionRequired) : null,
-        reorderLevel !== undefined ? parseInt(reorderLevel) : null,
+        reorderLevel !== undefined && reorderLevel !== '' ? parseInt(reorderLevel) : null,
         storageTemperature !== undefined ? storageTemperature : null,
         req.params.id,
-        currentShopId,
+        cleanShopId,
       ]
     );
 
@@ -324,7 +399,7 @@ router.put('/:id/toggle-active', authMiddleware, requireRole(['SHOP_OWNER', 'ADM
     const { rows } = await query(
       `UPDATE medicines
        SET is_active = NOT is_active, updated_at = now()
-       WHERE id = $1 AND ($2::uuid IS NULL OR shop_id = $2)
+       WHERE id = $1 AND ($2::uuid IS NULL OR shop_id = $2 OR shop_id IS NULL)
        RETURNING id, is_active`,
       [req.params.id, currentShopId]
     );
@@ -334,6 +409,26 @@ router.put('/:id/toggle-active', authMiddleware, requireRole(['SHOP_OWNER', 'ADM
   } catch (err) {
     console.error('Toggle active error:', err);
     res.status(500).json({ error: 'Failed to toggle medicine status: ' + err.message });
+  }
+});
+
+// DELETE /api/medicines/:id (Soft-delete / Deactivate)
+router.delete('/:id', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN', 'SUPER_ADMIN']), async (req, res) => {
+  const currentShopId = tenantShopId(req);
+  try {
+    const { rows } = await query(
+      `UPDATE medicines
+       SET is_active = false, updated_at = now()
+       WHERE id = $1 AND ($2::uuid IS NULL OR shop_id = $2 OR shop_id IS NULL)
+       RETURNING id, name, is_active`,
+      [req.params.id, currentShopId]
+    );
+
+    if (rows.length === 0) return res.status(404).json({ error: 'Medicine not found' });
+    res.json({ success: true, message: `Medicine "${rows[0].name}" deactivated successfully`, medicine: rows[0] });
+  } catch (err) {
+    console.error('Delete medicine error:', err);
+    res.status(500).json({ error: 'Failed to delete medicine: ' + err.message });
   }
 });
 

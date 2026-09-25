@@ -41,11 +41,21 @@ CREATE TABLE IF NOT EXISTS shops (
   enable_fefo BOOLEAN NOT NULL DEFAULT true,
   allow_negative_stock BOOLEAN NOT NULL DEFAULT false,
   require_doctor_on_schedule_h BOOLEAN NOT NULL DEFAULT true,
+  default_low_stock_threshold INT NOT NULL DEFAULT 15,
+  default_expiry_alert_days INT NOT NULL DEFAULT 90,
+  debit_note_prefix TEXT NOT NULL DEFAULT 'DBN',
+  debit_note_counter INT NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_shops_status ON shops (status);
 CREATE INDEX IF NOT EXISTS idx_shops_email ON shops (lower(email));
+
+-- Ensure columns exist if table was previously created
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS default_low_stock_threshold INT NOT NULL DEFAULT 15;
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS default_expiry_alert_days INT NOT NULL DEFAULT 90;
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS debit_note_prefix TEXT NOT NULL DEFAULT 'DBN';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS debit_note_counter INT NOT NULL DEFAULT 1;
 
 -- 2. Update USERS Table for Multi-Tenancy & Platform Admin
 ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id UUID REFERENCES shops(id) ON DELETE CASCADE;

@@ -54,6 +54,14 @@ router.put('/', requireRole(['ADMIN', 'SHOP_OWNER', 'SUPER_ADMIN']), async (req,
   } = req.body;
 
   try {
+    // Ensure columns exist on shops table
+    await query(`
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS default_low_stock_threshold INT NOT NULL DEFAULT 15;
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS default_expiry_alert_days INT NOT NULL DEFAULT 90;
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS debit_note_prefix TEXT NOT NULL DEFAULT 'DBN';
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS debit_note_counter INT NOT NULL DEFAULT 1;
+    `).catch(() => {});
+
     const { rows } = await query(
       `UPDATE shops SET
         shop_name = COALESCE($1, shop_name),

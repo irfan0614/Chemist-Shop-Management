@@ -14,6 +14,8 @@ export function MedicinesPage() {
   const [medicines, setMedicines] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [modalMode, setModalMode] = useState(null); // null | 'add' | 'edit'
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [selectedMed, setSelectedMed] = useState(null);
@@ -57,8 +59,8 @@ export function MedicinesPage() {
         api.get('/medicines'),
         api.get('/medicines/categories'),
       ]);
-      setMedicines(meds);
-      setCategories(cats);
+      setMedicines(Array.isArray(meds) ? meds : []);
+      setCategories(Array.isArray(cats) ? cats : []);
     } catch (err) {
       showError('Failed to load medicines: ' + err.message);
     } finally {
@@ -109,7 +111,7 @@ export function MedicinesPage() {
       generic_name: med.generic_name || '',
       brand: med.brand || '',
       manufacturer: med.manufacturer || '',
-      category_id: med.category_id || '',
+      category_id: med.category_id || (categories[0]?.id || ''),
       salt_composition: med.salt_composition || '',
       dosage_form: med.dosage_form || 'Tablet',
       strength: med.strength || '',
@@ -132,29 +134,40 @@ export function MedicinesPage() {
       return;
     }
 
+    const payload = {
+      ...form,
+      category_id: form.category_id && form.category_id.trim() !== '' ? form.category_id.trim() : null,
+    };
+
+    setSaving(true);
     try {
       if (modalMode === 'add') {
-        const created = await api.post('/medicines', form);
+        const created = await api.post('/medicines', payload);
         showSuccess(`Medicine "${created.name}" created successfully!`);
       } else {
-        const updated = await api.put(`/medicines/${selectedMed.id}`, form);
+        const updated = await api.put(`/medicines/${selectedMed.id}`, payload);
         showSuccess(`Medicine "${updated.name}" updated successfully!`);
       }
       setModalMode(null);
-      loadData();
+      await loadData();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Are you sure you want to deactivate "${name}"?`)) return;
+    setDeletingId(id);
     try {
       await api.del(`/medicines/${id}`);
       showSuccess(`Medicine "${name}" deactivated.`);
       loadData();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -245,6 +258,7 @@ export function MedicinesPage() {
             size="icon-sm"
             variant="ghost"
             onClick={() => handleDelete(m.id, m.name)}
+            loading={deletingId === m.id}
             className="text-slate-500 hover:text-rose-600 hover:bg-rose-50"
             title="Deactivate"
             icon={Trash2}
@@ -378,9 +392,10 @@ export function MedicinesPage() {
               <label className="block text-[11px] font-bold text-slate-600 mb-1">Category</label>
               <select
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none"
-                value={form.category_id}
+                value={form.category_id || ''}
                 onChange={(e) => setForm({ ...form, category_id: e.target.value })}
               >
+                <option value="">General / Uncategorized</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -572,6 +587,8 @@ export function MedicinesPage() {
             <Button
               variant="primary"
               onClick={handleSave}
+              loading={saving}
+              loadingText="Saving Medicine…"
             >
               Save Medicine
             </Button>

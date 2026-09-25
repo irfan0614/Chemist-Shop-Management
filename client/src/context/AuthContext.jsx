@@ -33,6 +33,8 @@ export function AuthProvider({ children }) {
     setToken(null);
     localStorage.removeItem('chemist_auth_token');
     localStorage.removeItem('chemist_user');
+    window.history.pushState(null, '', '/login');
+    document.title = 'Login | MedCloud Pharmacy ERP';
   };
 
   const hasRole = useCallback((allowedRoles = []) => {

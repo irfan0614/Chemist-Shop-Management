@@ -16,6 +16,8 @@ export function CustomersPage() {
   const [collectAmount, setCollectAmount] = useState('');
   const [collectMode, setCollectMode] = useState('CASH');
   const [collectRef, setCollectRef] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [collecting, setCollecting] = useState(false);
   const { showSuccess, showError } = useToast();
 
   const [form, setForm] = useState({
@@ -51,6 +53,7 @@ export function CustomersPage() {
       return;
     }
 
+    setSaving(true);
     try {
       await api.post('/customers', form);
       showSuccess(`Customer "${form.name}" registered successfully!`);
@@ -58,6 +61,8 @@ export function CustomersPage() {
       loadCustomers();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -69,6 +74,7 @@ export function CustomersPage() {
       return;
     }
 
+    setCollecting(true);
     try {
       const res = await api.post(`/customers/${collectCust.id}/collect-payment`, {
         amount,
@@ -81,6 +87,8 @@ export function CustomersPage() {
       loadCustomers();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setCollecting(false);
     }
   };
 
@@ -283,6 +291,8 @@ export function CustomersPage() {
             <Button
               variant="primary"
               onClick={handleSaveCustomer}
+              loading={saving}
+              loadingText="Saving Customer…"
             >
               Save Customer
             </Button>
@@ -343,6 +353,8 @@ export function CustomersPage() {
             <Button
               variant="primary"
               onClick={handleCollectPayment}
+              loading={collecting}
+              loadingText="Recording Collection…"
             >
               Confirm Collection Receipt
             </Button>

@@ -13,6 +13,8 @@ export function UsersPage() {
   const [users, setUsers] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const { showSuccess, showError } = useToast();
 
@@ -50,6 +52,7 @@ export function UsersPage() {
       return;
     }
 
+    setSaving(true);
     try {
       const res = await api.post('/auth/users', form);
       showSuccess(`Shop Owner account "${res.name}" registered successfully`);
@@ -58,16 +61,21 @@ export function UsersPage() {
       loadData();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleToggleUserStatus = async (user) => {
+    setTogglingId(user.id);
     try {
       const res = await api.put(`/auth/users/${user.id}/toggle-status`);
       showSuccess(`User account ${res.is_active ? 'activated' : 'deactivated'}`);
       loadData();
     } catch (err) {
       showError(err.message);
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -120,6 +128,7 @@ export function UsersPage() {
           size="xs"
           variant={u.is_active ? 'danger-outline' : 'primary'}
           onClick={() => handleToggleUserStatus(u)}
+          loading={togglingId === u.id}
           className={u.is_active ? '' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}
         >
           {u.is_active ? 'Deactivate' : 'Activate'}
@@ -286,6 +295,8 @@ export function UsersPage() {
             <Button
               variant="primary"
               onClick={handleCreateUser}
+              loading={saving}
+              loadingText="Creating Account…"
             >
               Create Account
             </Button>
