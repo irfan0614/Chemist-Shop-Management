@@ -1,872 +1,113 @@
 require('dotenv').config();
 const { Pool, types } = require('pg');
+const fs = require('fs');
+const path = require('path');
+const bcrypt = require('bcryptjs');
 
 // Parse PostgreSQL DATE as raw YYYY-MM-DD string to avoid timezone day shifts
 types.setTypeParser(1082, (val) => val);
 
 const useConnectionString = !!process.env.DATABASE_URL;
 
-let pool = null;
-let isConnected = false;
+const pool = new Pool(
+  useConnectionString
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 10000,
+      }
+    : {
+        host: process.env.PGHOST || 'localhost',
+        port: process.env.PGPORT || 5432,
+        database: process.env.PGDATABASE || 'chemist_shop',
+        user: process.env.PGUSER || 'postgres',
+        password: process.env.PGPASSWORD || '',
+        connectionTimeoutMillis: 10000,
+      }
+);
 
-try {
-  pool = new Pool(
-    useConnectionString
-      ? {
-          connectionString: process.env.DATABASE_URL,
-          ssl: { rejectUnauthorized: false },
-          connectionTimeoutMillis: 5000,
-        }
-      : {
-          host: process.env.PGHOST || 'localhost',
-          port: process.env.PGPORT || 5432,
-          database: process.env.PGDATABASE || 'chemist_shop',
-          user: process.env.PGUSER || 'postgres',
-          password: process.env.PGPASSWORD || '',
-          connectionTimeoutMillis: 5000,
-        }
-  );
+pool.on('error', (err) => {
+  console.error('PostgreSQL pool error:', err.message);
+});
 
-  pool.on('error', (err) => {
-    console.error('PostgreSQL pool error:', err.message);
-  });
-} catch (e) {
-  console.warn('PostgreSQL initialization warning:', e.message);
+/**
+ * Executes a parameterized SQL query against PostgreSQL.
+ */
+async function query(text, params) {
+  return pool.query(text, params);
 }
 
-// In-Memory store fallback for Medical Shop Management System
-const memStore = {
-  shops: [
-    {
-      id: '11111111-1111-1111-1111-111111111111',
-      shop_name: 'Apollo Health Chemist & Druggist',
-      slug: 'apollo-health-chemist',
-      tagline: 'Your Trusted Pharmacy & Healthcare Partner',
-      owner_name: 'Dr. Rajesh Sharma',
-      email: 'owner@apollochemist.in',
-      phone: '+91 98765 43210',
-      alt_phone: '+91 11 2345 6789',
-      address: 'Shop No. 12, Ground Floor, Central Market',
-      city: 'New Delhi',
-      state: 'Delhi',
-      state_code: '07',
-      pincode: '110001',
-      gstin: '07AAAAA0000A1Z5',
-      dl_number_20b: 'DL-20B-129482',
-      dl_number_21b: 'DL-21B-129483',
-      fssai_no: '10019011000123',
-      pan_no: 'AAAAA0000A',
-      status: 'ACTIVE',
-      subscription_plan: 'PRO',
-      subscription_expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 320).toISOString(),
-      dl_expiry_date: '2028-12-31',
-      bill_prefix: 'INV',
-      bill_counter: 1003,
-      purchase_prefix: 'PUR',
-      purchase_counter: 102,
-      return_prefix: 'SRT',
-      return_counter: 1,
-      default_low_stock_threshold: 15,
-      default_expiry_alert_days: 90,
-      thermal_printer_size: '80mm',
-      invoice_terms: '1. Goods once sold will not be taken back without original bill. 2. Refrigerated medicines are non-returnable.',
-      enable_fefo: true,
-      allow_negative_stock: false,
-      require_doctor_on_schedule_h: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '22222222-2222-2222-2222-222222222222',
-      shop_name: 'CarePlus Pharmacy & Wellness Clinic',
-      slug: 'careplus-pharmacy-mumbai',
-      tagline: '24/7 Quality Healthcare & Genuine Medicines',
-      owner_name: 'Dr. Sunita Mehta',
-      email: 'owner@careplus.com',
-      phone: '+91 98200 12345',
-      alt_phone: '+91 22 2654 9876',
-      address: 'Shop 4, Sunrise Arcade, Linking Road, Bandra West',
-      city: 'Mumbai',
-      state: 'Maharashtra',
-      state_code: '27',
-      pincode: '400050',
-      gstin: '27BBBBB1111B1Z2',
-      dl_number_20b: 'MH-20B-987654',
-      dl_number_21b: 'MH-21B-987655',
-      fssai_no: '10019022000456',
-      pan_no: 'BBBBB1111B',
-      status: 'ACTIVE',
-      subscription_plan: 'ENTERPRISE',
-      subscription_expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180).toISOString(),
-      dl_expiry_date: '2029-06-30',
-      bill_prefix: 'CP',
-      bill_counter: 201,
-      purchase_prefix: 'CPP',
-      purchase_counter: 51,
-      return_prefix: 'CPR',
-      return_counter: 1,
-      default_low_stock_threshold: 20,
-      default_expiry_alert_days: 90,
-      thermal_printer_size: '80mm',
-      invoice_terms: '1. Goods once sold are subject to store policy. 2. Batch verification mandatory.',
-      enable_fefo: true,
-      allow_negative_stock: false,
-      require_doctor_on_schedule_h: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-  ],
-  // Legacy settings alias for default shop
-  get settings() {
-    return this.shops[0];
-  },
-  users: [
-    {
-      id: '00000000-0000-0000-0000-000000000000',
-      full_name: 'Platform Super Admin',
-      email: 'superadmin@platform.com',
-      password_hash: '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-      role: 'SUPER_ADMIN',
-      phone: '+91 99999 00000',
-      shop_id: null,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000001',
-      full_name: 'Dr. Rajesh Sharma (Apollo Owner)',
-      email: 'admin@chemist.com',
-      password_hash: '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-      role: 'SHOP_OWNER',
-      phone: '+91 98765 43210',
-      shop_id: '11111111-1111-1111-1111-111111111111',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000002',
-      full_name: 'Dr. Sunita Mehta (CarePlus Owner)',
-      email: 'owner@careplus.com',
-      password_hash: '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-      role: 'SHOP_OWNER',
-      phone: '+91 98200 12345',
-      shop_id: '22222222-2222-2222-2222-222222222222',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    }
-  ],
-  categories: [
-    { id: 'cat-1', name: 'Antibiotics & Anti-Infectives', description: 'Antibacterial, Antiviral, Antifungal drugs' },
-    { id: 'cat-2', name: 'Pain Relief & Analgesics', description: 'NSAIDs, Paracetamol, Antispasmodics' },
-    { id: 'cat-3', name: 'Cardiovascular & Hypertension', description: 'Blood pressure, Statins, Heart medications' },
-    { id: 'cat-4', name: 'Diabetes Care', description: 'Oral Hypoglycemics, Insulin, GLP-1s' },
-    { id: 'cat-5', name: 'Respiratory & Anti-Allergic', description: 'Antihistamines, Cough syrups, Inhalers' },
-    { id: 'cat-6', name: 'Gastrointestinal & Antacids', description: 'PPIs, Antacids, Laxatives, Probiotics' },
-    { id: 'cat-7', name: 'Vitamins & Supplements', description: 'Multivitamins, Minerals, Calcium, Protein' },
-    { id: 'cat-8', name: 'Dermatology & Topicals', description: 'Ointments, Creams, Lotions, Antifungals' },
-    { id: 'cat-9', name: 'Ayurvedic & OTC', description: 'Herbal supplements, OTC wellness products' },
-    { id: 'cat-10', name: 'Surgicals & Medical Devices', description: 'Syringes, Needles, Cotton, Gauze, BP monitors' },
-  ],
-  medicines: [
-    {
-      id: 'med-1',
-      name: 'Dolo 650 Tablet',
-      generic_name: 'Paracetamol',
-      brand: 'Dolo',
-      manufacturer: 'Micro Labs Ltd',
-      category_id: 'cat-2',
-      salt_composition: 'Paracetamol 650mg',
-      dosage_form: 'Tablet',
-      strength: '650mg',
-      pack_size: 15,
-      unit: 'Strips',
-      barcode: '890123456701',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'NONE',
-      is_prescription_required: false,
-      reorder_level: 30,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-2',
-      name: 'Augmentin 625 Duo Tablet',
-      generic_name: 'Amoxycillin + Potassium Clavulanate',
-      brand: 'Augmentin',
-      manufacturer: 'GlaxoSmithKline (GSK)',
-      category_id: 'cat-1',
-      salt_composition: 'Amoxycillin 500mg + Clavulanic Acid 125mg',
-      dosage_form: 'Tablet',
-      strength: '625mg',
-      pack_size: 10,
-      unit: 'Strips',
-      barcode: '890123456702',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'H1',
-      is_prescription_required: true,
-      reorder_level: 20,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-3',
-      name: 'Azithral 500 Tablet',
-      generic_name: 'Azithromycin',
-      brand: 'Azithral',
-      manufacturer: 'Alembic Pharmaceuticals',
-      category_id: 'cat-1',
-      salt_composition: 'Azithromycin 500mg',
-      dosage_form: 'Tablet',
-      strength: '500mg',
-      pack_size: 5,
-      unit: 'Strips',
-      barcode: '890123456703',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'H1',
-      is_prescription_required: true,
-      reorder_level: 15,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-4',
-      name: 'Pantocid 40 Tablet',
-      generic_name: 'Pantoprazole Sodium',
-      brand: 'Pantocid',
-      manufacturer: 'Sun Pharmaceutical Industries',
-      category_id: 'cat-6',
-      salt_composition: 'Pantoprazole 40mg',
-      dosage_form: 'Tablet',
-      strength: '40mg',
-      pack_size: 15,
-      unit: 'Strips',
-      barcode: '890123456704',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'H',
-      is_prescription_required: true,
-      reorder_level: 25,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-5',
-      name: 'Telma 40 Tablet',
-      generic_name: 'Telmisartan',
-      brand: 'Telma',
-      manufacturer: 'Glenmark Pharmaceuticals',
-      category_id: 'cat-3',
-      salt_composition: 'Telmisartan 40mg',
-      dosage_form: 'Tablet',
-      strength: '40mg',
-      pack_size: 15,
-      unit: 'Strips',
-      barcode: '890123456705',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'H',
-      is_prescription_required: true,
-      reorder_level: 20,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-6',
-      name: 'Glycomet-GP 1 Tablet',
-      generic_name: 'Metformin + Glimepiride',
-      brand: 'Glycomet-GP',
-      manufacturer: 'USV Private Limited',
-      category_id: 'cat-4',
-      salt_composition: 'Metformin 500mg + Glimepiride 1mg',
-      dosage_form: 'Tablet',
-      strength: '1mg/500mg',
-      pack_size: 15,
-      unit: 'Strips',
-      barcode: '890123456706',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'H',
-      is_prescription_required: true,
-      reorder_level: 25,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-7',
-      name: 'Montair-LC Tablet',
-      generic_name: 'Montelukast + Levocetirizine',
-      brand: 'Montair-LC',
-      manufacturer: 'Cipla Ltd',
-      category_id: 'cat-5',
-      salt_composition: 'Montelukast 10mg + Levocetirizine 5mg',
-      dosage_form: 'Tablet',
-      strength: '10mg/5mg',
-      pack_size: 10,
-      unit: 'Strips',
-      barcode: '890123456707',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'H',
-      is_prescription_required: true,
-      reorder_level: 20,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-8',
-      name: 'Becosules Z Capsule',
-      generic_name: 'Multivitamins with Zinc',
-      brand: 'Becosules',
-      manufacturer: 'Pfizer Ltd',
-      category_id: 'cat-7',
-      salt_composition: 'B-Complex + Vit C + Zinc Sulphate',
-      dosage_form: 'Capsule',
-      strength: 'Standard',
-      pack_size: 20,
-      unit: 'Strips',
-      barcode: '890123456708',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'NONE',
-      is_prescription_required: false,
-      reorder_level: 30,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-9',
-      name: 'Calcirol 60K Sachet',
-      generic_name: 'Cholecalciferol (Vitamin D3)',
-      brand: 'Calcirol',
-      manufacturer: 'Cadila Healthcare (Zydus)',
-      category_id: 'cat-7',
-      salt_composition: 'Vitamin D3 60,000 IU Granules',
-      dosage_form: 'Sachets',
-      strength: '60,000 IU',
-      pack_size: 1,
-      unit: 'Sachets',
-      barcode: '890123456709',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'NONE',
-      is_prescription_required: false,
-      reorder_level: 50,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'med-10',
-      name: 'Restyl 0.5 Tablet',
-      generic_name: 'Alprazolam',
-      brand: 'Restyl',
-      manufacturer: 'Torrent Pharmaceuticals',
-      category_id: 'cat-2',
-      salt_composition: 'Alprazolam 0.5mg',
-      dosage_form: 'Tablet',
-      strength: '0.5mg',
-      pack_size: 15,
-      unit: 'Strips',
-      barcode: '890123456710',
-      hsn_code: '3004',
-      gst_rate: 12.0,
-      schedule_type: 'H1',
-      is_prescription_required: true,
-      reorder_level: 10,
-      storage_temperature: 'Room Temperature',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    }
-  ],
-  batches: [
-    { id: 'b-1', medicine_id: 'med-1', batch_no: 'DL2401', mfg_date: '2025-10-01', expiry_date: '2028-06-30', purchase_cost: 22.50, mrp: 33.75, selling_price: 31.00, current_stock: 80, rack_shelf: 'Rack A-1', is_blocked: false },
-    { id: 'b-2', medicine_id: 'med-1', batch_no: 'DL2309', mfg_date: '2025-01-01', expiry_date: '2026-11-30', purchase_cost: 21.00, mrp: 31.50, selling_price: 29.00, current_stock: 25, rack_shelf: 'Rack A-1', is_blocked: false },
-    { id: 'b-3', medicine_id: 'med-2', batch_no: 'AG625-A', mfg_date: '2025-11-01', expiry_date: '2028-04-30', purchase_cost: 145.00, mrp: 204.50, selling_price: 195.00, current_stock: 45, rack_shelf: 'Rack B-3', is_blocked: false },
-    { id: 'b-4', medicine_id: 'med-2', batch_no: 'AG625-B', mfg_date: '2025-03-01', expiry_date: '2026-10-31', purchase_cost: 140.00, mrp: 198.00, selling_price: 185.00, current_stock: 12, rack_shelf: 'Rack B-3', is_blocked: false },
-    { id: 'b-5', medicine_id: 'med-3', batch_no: 'AZ500-24', mfg_date: '2025-09-01', expiry_date: '2028-05-31', purchase_cost: 85.00, mrp: 132.00, selling_price: 125.00, current_stock: 35, rack_shelf: 'Rack B-4', is_blocked: false },
-    { id: 'b-6', medicine_id: 'med-4', batch_no: 'PC40-99', mfg_date: '2026-01-01', expiry_date: '2028-08-31', purchase_cost: 110.00, mrp: 175.00, selling_price: 160.00, current_stock: 60, rack_shelf: 'Rack C-1', is_blocked: false },
-    { id: 'b-7', medicine_id: 'med-5', batch_no: 'TL40-88', mfg_date: '2025-10-01', expiry_date: '2028-09-30', purchase_cost: 155.00, mrp: 245.00, selling_price: 225.00, current_stock: 40, rack_shelf: 'Rack C-5', is_blocked: false },
-    { id: 'b-8', medicine_id: 'med-6', batch_no: 'GG1-77', mfg_date: '2025-08-01', expiry_date: '2028-03-31', purchase_cost: 95.00, mrp: 148.00, selling_price: 138.00, current_stock: 50, rack_shelf: 'Rack D-2', is_blocked: false },
-    { id: 'b-9', medicine_id: 'med-7', batch_no: 'MLC-44', mfg_date: '2025-11-01', expiry_date: '2028-07-31', purchase_cost: 130.00, mrp: 210.00, selling_price: 195.00, current_stock: 55, rack_shelf: 'Rack E-1', is_blocked: false },
-    { id: 'b-10', medicine_id: 'med-8', batch_no: 'BCZ-12', mfg_date: '2025-07-01', expiry_date: '2028-02-28', purchase_cost: 38.00, mrp: 56.00, selling_price: 52.00, current_stock: 90, rack_shelf: 'Rack F-3', is_blocked: false },
-    { id: 'b-11', medicine_id: 'med-9', batch_no: 'CR60-01', mfg_date: '2025-10-01', expiry_date: '2028-06-30', purchase_cost: 28.00, mrp: 48.00, selling_price: 44.00, current_stock: 110, rack_shelf: 'Rack F-4', is_blocked: false },
-    { id: 'b-12', medicine_id: 'med-10', batch_no: 'RST-09', mfg_date: '2025-09-01', expiry_date: '2028-05-31', purchase_cost: 32.00, mrp: 52.50, selling_price: 48.00, current_stock: 30, rack_shelf: 'Locked Safe S1', is_blocked: false },
-  ],
-  suppliers: [
-    {
-      id: 'sup-1',
-      name: 'MedPlus Pharma Distributors',
-      company_name: 'MedPlus Healthcare Ltd',
-      contact_person: 'Sanjay Gupta',
-      phone: '+91 9811002233',
-      alt_phone: '+91 11 44556677',
-      email: 'orders@medplusdist.com',
-      address: 'Plot 45, Okhla Industrial Area Ph-2',
-      city: 'New Delhi',
-      state: 'Delhi',
-      state_code: '07',
-      pincode: '110020',
-      gstin: '07AACCM1234D1Z8',
-      dl_numbers: 'DL-20B-8812, DL-21B-8813',
-      payment_terms_days: 30,
-      credit_limit: 150000.00,
-      opening_balance: 0.00,
-      current_balance: 14500.00,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'sup-2',
-      name: 'Sun Pharma Agency',
-      company_name: 'Sun Lifesciences Agency',
-      contact_person: 'Amit Tyagi',
-      phone: '+91 9822114455',
-      alt_phone: '',
-      email: 'sales@suncare.in',
-      address: 'Building 12, Bhagirath Palace, Chandni Chowk',
-      city: 'Delhi',
-      state: 'Delhi',
-      state_code: '07',
-      pincode: '110006',
-      gstin: '07AABCS5566K1Z2',
-      dl_numbers: 'DL-20B-9921, DL-21B-9922',
-      payment_terms_days: 21,
-      credit_limit: 100000.00,
-      opening_balance: 0.00,
-      current_balance: 8200.00,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'sup-3',
-      name: 'Cipla Generic Distributors',
-      company_name: 'Cipla Care Logistics',
-      contact_person: 'Vikram Mehra',
-      phone: '+91 9833225566',
-      alt_phone: '',
-      email: 'delhi@cipladist.com',
-      address: 'Unit 8, Daryaganj Medical Market',
-      city: 'New Delhi',
-      state: 'Delhi',
-      state_code: '07',
-      pincode: '110002',
-      gstin: '07AABCC3344M1Z5',
-      dl_numbers: 'DL-20B-7744, DL-21B-7745',
-      payment_terms_days: 30,
-      credit_limit: 200000.00,
-      opening_balance: 0.00,
-      current_balance: 0.00,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    }
-  ],
-  customers: [
-    {
-      id: 'cust-walkin',
-      name: 'Walk-in Customer (Cash)',
-      phone: '9999999999',
-      email: '',
-      address: 'Counter Sale',
-      city: 'New Delhi',
-      state: 'Delhi',
-      pincode: '',
-      preferred_doctor: '',
-      credit_limit: 0.00,
-      opening_balance: 0.00,
-      current_balance: 0.00,
-      customer_type: 'RETAIL',
-      discount_percent: 0.00,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'cust-1',
-      name: 'Anil Kashyap',
-      phone: '9811223399',
-      email: 'anil.k@gmail.com',
-      address: 'Flat 402, Green Park',
-      city: 'New Delhi',
-      state: 'Delhi',
-      pincode: '110016',
-      preferred_doctor: 'Dr. S. K. Gupta (Cardiologist)',
-      credit_limit: 10000.00,
-      opening_balance: 0.00,
-      current_balance: 1250.00,
-      customer_type: 'REGULAR',
-      discount_percent: 5.00,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 'cust-2',
-      name: 'Sunita Sundaram',
-      phone: '9822334411',
-      email: 'sunita.s@yahoo.com',
-      address: 'B-14, Hauz Khas',
-      city: 'New Delhi',
-      state: 'Delhi',
-      pincode: '110016',
-      preferred_doctor: 'Dr. Meenakshi Iyer',
-      credit_limit: 5000.00,
-      opening_balance: 0.00,
-      current_balance: 0.00,
-      customer_type: 'SENIOR_CITIZEN',
-      discount_percent: 10.00,
-      is_active: true,
-      created_at: new Date().toISOString(),
-    }
-  ],
-  prescriptions: [
-    {
-      id: 'pr-1',
-      prescription_no: 'RX-2026-001',
-      customer_id: 'cust-1',
-      patient_name: 'Anil Kashyap',
-      patient_age: 52,
-      patient_gender: 'Male',
-      doctor_name: 'Dr. S. K. Gupta',
-      doctor_reg_no: 'DMC-29481',
-      hospital_clinic: 'Max Super Speciality Hospital, Saket',
-      prescription_date: '2026-09-20',
-      image_data: '',
-      notes: 'Hypertension & Lipid profile follow-up',
-      created_at: new Date().toISOString(),
-    }
-  ],
-  purchases: [
-    {
-      id: 'pur-1',
-      purchase_no: 'PUR-101',
-      supplier_id: 'sup-1',
-      supplier_invoice_no: 'MED-99482',
-      supplier_invoice_date: '2026-09-18',
-      purchase_date: '2026-09-19',
-      subtotal: 12500.00,
-      discount_amount: 500.00,
-      gst_total: 1440.00,
-      round_off: 0.00,
-      total_amount: 13440.00,
-      paid_amount: 5000.00,
-      payment_status: 'PARTIAL',
-      payment_mode: 'NEFT/RTGS',
-      notes: 'Monthly stock refill (Dolo + Augmentin)',
-      created_at: new Date().toISOString(),
-      items: [
-        {
-          id: 'pi-1',
-          purchase_id: 'pur-1',
-          medicine_id: 'med-1',
-          batch_no: 'DL2401',
-          expiry_date: '2028-06-30',
-          pack_size: 15,
-          qty: 100,
-          free_qty: 10, // 10+1 free scheme
-          purchase_cost: 22.50,
-          mrp: 33.75,
-          selling_price: 31.00,
-          discount_percent: 5.0,
-          gst_rate: 12.0,
-          gst_amount: 270.00,
-          total_amount: 2407.50,
-        },
-        {
-          id: 'pi-2',
-          purchase_id: 'pur-1',
-          medicine_id: 'med-2',
-          batch_no: 'AG625-A',
-          expiry_date: '2028-04-30',
-          pack_size: 10,
-          qty: 50,
-          free_qty: 5,
-          purchase_cost: 145.00,
-          mrp: 204.50,
-          selling_price: 195.00,
-          discount_percent: 0.0,
-          gst_rate: 12.0,
-          gst_amount: 870.00,
-          total_amount: 8120.00,
-        }
-      ]
-    }
-  ],
-  sales_invoices: [
-    {
-      id: 'inv-1',
-      invoice_no: 'INV-1001',
-      invoice_date: new Date().toISOString().slice(0, 10),
-      customer_id: 'cust-1',
-      customer_name: 'Anil Kashyap',
-      customer_phone: '9811223399',
-      doctor_name: 'Dr. S. K. Gupta',
-      doctor_reg_no: 'DMC-29481',
-      subtotal: 512.00,
-      discount_amount: 25.60,
-      discount_percent: 5.00,
-      gst_total: 58.37,
-      cgst_total: 29.18,
-      sgst_total: 29.19,
-      round_off: 0.23,
-      total_amount: 545.00,
-      paid_amount: 545.00,
-      change_amount: 0.00,
-      payment_mode: 'UPI',
-      payment_details: { upi_ref: 'UPI-994829381' },
-      payment_status: 'PAID',
-      bill_type: 'TAX_INVOICE',
-      status: 'COMPLETED',
-      cashier_id: '00000000-0000-0000-0000-000000000003',
-      created_at: new Date().toISOString(),
-      items: [
-        {
-          id: 'sii-1',
-          invoice_id: 'inv-1',
-          medicine_id: 'med-1',
-          batch_id: 'b-1',
-          medicine_name: 'Dolo 650 Tablet',
-          batch_no: 'DL2401',
-          expiry_date: '2028-06-30',
-          hsn_code: '3004',
-          pack_size: 15,
-          qty: 2,
-          unit: 'Strips',
-          purchase_cost: 22.50,
-          mrp: 33.75,
-          unit_price: 31.00,
-          discount_percent: 5.0,
-          gst_rate: 12.0,
-          gst_amount: 7.07,
-          cgst_amount: 3.53,
-          sgst_amount: 3.54,
-          total_amount: 65.97,
-        },
-        {
-          id: 'sii-2',
-          invoice_id: 'inv-1',
-          medicine_id: 'med-5',
-          batch_id: 'b-7',
-          medicine_name: 'Telma 40 Tablet',
-          batch_no: 'TL40-88',
-          expiry_date: '2028-09-30',
-          hsn_code: '3004',
-          pack_size: 15,
-          qty: 2,
-          unit: 'Strips',
-          purchase_cost: 155.00,
-          mrp: 245.00,
-          unit_price: 225.00,
-          discount_percent: 5.0,
-          gst_rate: 12.0,
-          gst_amount: 51.30,
-          cgst_amount: 25.65,
-          sgst_amount: 25.65,
-          total_amount: 478.80,
-        }
-      ]
-    }
-  ],
-  sales_returns: [],
-  purchase_returns: [],
-  expense_categories: [
-    { id: 'ec-1', name: 'Shop Rent', description: 'Monthly shop lease and premises rental' },
-    { id: 'ec-2', name: 'Staff Salaries', description: 'Pharmacist, cashier, and staff wages' },
-    { id: 'ec-3', name: 'Electricity & Power', description: 'Power bills and backup fuel expenses' },
-    { id: 'ec-4', name: 'Stationery & Printing', description: 'POS paper rolls, bill books, envelopes' },
-    { id: 'ec-5', name: 'Tea & Pantry Refreshments', description: 'Daily tea, coffee, and pantry expenses' },
-    { id: 'ec-6', name: 'Maintenance & Repairs', description: 'A/C, refrigerator, IT & rack maintenance' },
-  ],
-  expenses: [
-    {
-      id: 'exp-1',
-      category_id: 'ec-4',
-      expense_date: new Date().toISOString().slice(0, 10),
-      title: 'Thermal POS Paper Rolls (50 pack)',
-      amount: 450.00,
-      payment_mode: 'CASH',
-      paid_to: 'Super Stationery Mart',
-      notes: '80mm billing printer rolls',
-      created_at: new Date().toISOString(),
-    }
-  ],
-  cash_registers: [
-    {
-      id: 'cr-1',
-      register_date: new Date().toISOString().slice(0, 10),
-      opening_cash: 2000.00,
-      cash_sales: 1250.00,
-      cash_returns: 0.00,
-      cash_expenses: 450.00,
-      customer_cash_in: 0.00,
-      supplier_cash_out: 0.00,
-      expected_cash: 2800.00,
-      closing_cash: null,
-      cash_difference: null,
-      status: 'OPEN',
-      notes: '',
-      opened_at: new Date().toISOString(),
-    }
-  ],
-  audit_logs: [],
-  held_bills: [],
-};
+/**
+ * Gets a client from the pool for transactions.
+ */
+async function connect() {
+  return pool.connect();
+}
 
-// Aliases for backward compatibility
-Object.defineProperty(memStore, 'bills', {
-  get() {
-    return this.sales_invoices || [];
-  },
-  set(val) {
-    this.sales_invoices = val;
-  },
-  configurable: true,
-  enumerable: true,
-});
+/**
+ * Ensures all schema tables and extensions exist on PostgreSQL.
+ * Seeds only the Super Admin account if users table is empty.
+ */
+async function initDb() {
+  try {
+    const client = await pool.connect();
+    try {
+      // 0. Ensure role check constraint is relaxed so existing databases do not throw errors
+      await client.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+            ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+            ALTER TABLE users ADD CONSTRAINT users_role_check 
+              CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER', 'ADMIN', 'PHARMACIST', 'CASHIER', 'STAFF'));
+          END IF;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END $$;
+      `);
 
-// Auto-tag all existing entities with primary shop_id and seed sample tenant data
-const DEFAULT_SHOP_ID = '11111111-1111-1111-1111-111111111111';
-const CAREPLUS_SHOP_ID = '22222222-2222-2222-2222-222222222222';
+      // 1. Run schema.sql
+      const schemaPath = path.join(__dirname, 'schema.sql');
+      if (fs.existsSync(schemaPath)) {
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        await client.query(schemaSql);
+      }
 
-['categories', 'medicines', 'batches', 'suppliers', 'purchases', 'customers', 'prescriptions', 'bills', 'sales_returns', 'purchase_returns', 'expense_categories', 'expenses', 'cash_registers', 'audit_logs'].forEach((key) => {
-  if (Array.isArray(memStore[key])) {
-    memStore[key].forEach((item) => {
-      if (!item.shop_id) item.shop_id = DEFAULT_SHOP_ID;
-    });
+      // 2. Run multi-tenant migration if exists
+      const migrationPath = path.join(__dirname, 'migrations', '001_multi_tenant_migration.sql');
+      if (fs.existsSync(migrationPath)) {
+        const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+        await client.query(migrationSql);
+      }
+
+      // 3. Ensure super admin user exists with valid bcrypt hash
+      const defaultHash = bcrypt.hashSync('superadmin123', 10);
+      await client.query(
+        `INSERT INTO users (id, full_name, email, password_hash, role, phone, is_active, shop_id)
+         VALUES ('00000000-0000-0000-0000-000000000000', 'Platform Super Admin', 'superadmin@platform.com', $1, 'SUPER_ADMIN', '+91 99999 00000', true, NULL)
+         ON CONFLICT (email) DO UPDATE SET password_hash = $1, is_active = true, role = 'SUPER_ADMIN'`,
+        [defaultHash]
+      );
+      console.log('👑 Platform Super Admin ready: superadmin@platform.com (password: superadmin123)');
+
+      // If default demo admin exists with dummy placeholder hash, update to valid bcrypt hash
+      const adminHash = bcrypt.hashSync('admin123', 10);
+      await client.query(
+        `UPDATE users SET password_hash = $1 WHERE email = 'admin@chemist.com' AND (password_hash LIKE '$2a$10$wEeVg7d8%' OR password_hash IS NULL)`,
+        [adminHash]
+      ).catch(() => {});
+
+      console.log('✅ PostgreSQL Database schema verified and initialized.');
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('⚠️ Database initialization notice:', err.message);
   }
-});
-
-// Seed sample medicines and batches for CarePlus Pharmacy (Shop 2)
-memStore.medicines.push(
-  {
-    id: 'cp-med-1',
-    shop_id: CAREPLUS_SHOP_ID,
-    name: 'Azithral 500 Tablet',
-    generic_name: 'Azithromycin',
-    brand: 'Azithral',
-    manufacturer: 'Alembic Pharmaceuticals',
-    category_id: 'cat-1',
-    salt_composition: 'Azithromycin 500mg',
-    dosage_form: 'Tablet',
-    strength: '500mg',
-    pack_size: 5,
-    unit: 'Strips',
-    barcode: '890998877001',
-    hsn_code: '3004',
-    gst_rate: 12.0,
-    schedule_type: 'H',
-    is_prescription_required: true,
-    reorder_level: 20,
-    storage_temperature: 'Room Temperature',
-    is_active: true,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'cp-med-2',
-    shop_id: CAREPLUS_SHOP_ID,
-    name: 'Pan-D Capsule',
-    generic_name: 'Pantoprazole + Domperidone',
-    brand: 'Pan',
-    manufacturer: 'Alkem Laboratories',
-    category_id: 'cat-6',
-    salt_composition: 'Pantoprazole 40mg + Domperidone 30mg',
-    dosage_form: 'Capsule',
-    strength: '40mg/30mg',
-    pack_size: 15,
-    unit: 'Strips',
-    barcode: '890998877002',
-    hsn_code: '3004',
-    gst_rate: 12.0,
-    schedule_type: 'H',
-    is_prescription_required: false,
-    reorder_level: 25,
-    storage_temperature: 'Room Temperature',
-    is_active: true,
-    created_at: new Date().toISOString(),
-  }
-);
-
-memStore.batches.push(
-  {
-    id: 'cp-batch-1',
-    shop_id: CAREPLUS_SHOP_ID,
-    medicine_id: 'cp-med-1',
-    batch_no: 'AZ2401',
-    mfg_date: '2025-01-01',
-    expiry_date: '2027-06-30',
-    purchase_cost: 95.00,
-    mrp: 135.00,
-    selling_price: 130.00,
-    current_stock: 45,
-    rack_shelf: 'CP-B1',
-    is_blocked: false,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'cp-batch-2',
-    shop_id: CAREPLUS_SHOP_ID,
-    medicine_id: 'cp-med-2',
-    batch_no: 'PND902',
-    mfg_date: '2025-02-01',
-    expiry_date: '2027-11-30',
-    purchase_cost: 140.00,
-    mrp: 199.00,
-    selling_price: 195.00,
-    current_stock: 60,
-    rack_shelf: 'CP-G2',
-    is_blocked: false,
-    created_at: new Date().toISOString(),
-  }
-);
-
-memStore.customers.push({
-  id: 'cp-cust-1',
-  shop_id: CAREPLUS_SHOP_ID,
-  name: 'Vikram Malhotra',
-  phone: '+91 98201 55667',
-  email: 'vikram.m@gmail.com',
-  address: 'Bandra West, Mumbai',
-  customer_type: 'VIP',
-  discount_percent: 5.0,
-  credit_limit: 5000.0,
-  current_balance: 0.0,
-  is_active: true,
-  created_at: new Date().toISOString(),
-});
+}
 
 module.exports = {
   pool,
-  memStore,
-  async query(text, params) {
-    if (pool) {
-      try {
-        return await pool.query(text, params);
-      } catch (err) {
-        console.warn('PostgreSQL query error, falling back to local store:', err.message);
-      }
-    }
-    return { rows: [], rowCount: 0 };
-  },
-  async connect() {
-    if (pool) {
-      try {
-        return await pool.connect();
-      } catch (err) {
-        console.warn('PostgreSQL connect error:', err.message);
-      }
-    }
-    // Mock client for safe rollback and commit
-    return {
-      query: async (t, p) => ({ rows: [], rowCount: 0 }),
-      release: () => {},
-    };
-  }
+  query,
+  connect,
+  initDb,
 };

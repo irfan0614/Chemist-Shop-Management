@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
+import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { fmtDate } from '../utils/formatters';
 
@@ -80,7 +81,7 @@ export function PrescriptionsPage() {
       render: (r) => (
         <div>
           <div className="font-bold text-slate-900">{r.patientName}</div>
-          <div className="text-[10px] text-slate-400">{r.patientAddress || 'New Delhi'}</div>
+          {r.patientAddress && <div className="text-[10px] text-slate-400">{r.patientAddress}</div>}
         </div>
       ),
     },
@@ -204,13 +205,14 @@ export function PrescriptionsPage() {
             </button>
           </div>
 
-          <button
+          <Button
+            variant="primary"
+            size="sm"
+            icon={Plus}
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
           >
-            <Plus className="w-4 h-4" />
-            <span>Upload Prescription</span>
-          </button>
+            Upload Prescription
+          </Button>
         </div>
       </div>
 
@@ -332,18 +334,18 @@ export function PrescriptionsPage() {
           </div>
 
           <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setIsAddModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSavePrescription}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20"
             >
               Save Prescription
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

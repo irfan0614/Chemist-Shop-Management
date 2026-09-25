@@ -1,123 +1,161 @@
 const express = require('express');
-const { memStore } = require('../db/pool');
+const { query } = require('../db/pool');
 const { authMiddleware, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 router.use(authMiddleware);
 
 // GET /api/prescriptions
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const shopId = tenantShopId(req);
   const { search, doctorName, startDate, endDate } = req.query;
-  let list = memStore.prescriptions.filter((p) => p.shop_id === shopId);
 
-  if (doctorName) {
-    list = list.filter((p) => p.doctor_name.toLowerCase().includes(doctorName.toLowerCase()));
+  try {
+    let sql = `
+      SELECT p.id, p.shop_id as "shopId", p.prescription_no as "prescriptionNo",
+             p.customer_id as "customerId",
+             p.patient_name as "patientName", p.patient_name,
+             p.doctor_name as "doctorName", p.doctor_name,
+             p.doctor_reg_no as "doctorRegNo", p.doctor_reg_no,
+             p.prescription_date as "prescriptionDate", p.prescription_date,
+             p.image_data as "imageUrl", p.image_data as "imageData", p.notes, p.created_at,
+             c.name as "customerName", c.phone as "customerPhone"
+      FROM prescriptions p
+      LEFT JOIN customers c ON p.customer_id = c.id
+      WHERE ($1::uuid IS NULL OR p.shop_id = $1)
+    `;
+    const params = [shopId];
+
+    if (doctorName) {
+      params.push(`%${doctorName.trim().toLowerCase()}%`);
+      sql += ` AND lower(p.doctor_name) LIKE $${params.length}`;
+    }
+
+    if (startDate) {
+      params.push(startDate);
+      sql += ` AND p.prescription_date >= $${params.length}`;
+    }
+
+    if (endDate) {
+      params.push(endDate);
+      sql += ` AND p.prescription_date <= $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      sql += ` AND (
+        lower(p.patient_name) LIKE $${params.length} OR
+        lower(p.doctor_name) LIKE $${params.length} OR
+        lower(p.doctor_reg_no) LIKE $${params.length}
+      )`;
+    }
+
+    sql += ` ORDER BY p.prescription_date DESC, p.created_at DESC`;
+
+    const { rows } = await query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get prescriptions error:', err);
+    res.status(500).json({ error: 'Failed to retrieve prescriptions: ' + err.message });
   }
-
-  if (startDate) {
-    list = list.filter((p) => p.prescription_date >= startDate);
-  }
-
-  if (endDate) {
-    list = list.filter((p) => p.prescription_date <= endDate);
-  }
-
-  if (search) {
-    const q = search.trim().toLowerCase();
-    list = list.filter(
-      (p) =>
-        p.prescription_no.toLowerCase().includes(q) ||
-        p.patient_name.toLowerCase().includes(q) ||
-        p.doctor_name.toLowerCase().includes(q) ||
-        p.doctor_reg_no.toLowerCase().includes(q) ||
-        (p.hospital_clinic || '').toLowerCase().includes(q)
-    );
-  }
-
-  list.sort((a, b) => (b.prescription_date > a.prescription_date ? 1 : -1));
-  res.json(list);
 });
 
-// GET /api/prescriptions/schedule-h1-register - Indian Drug Law Schedule H1 Register
-router.get('/schedule-h1-register', (req, res) => {
+// GET /api/prescriptions/schedule-h1-register - Indian Drug Law Schedule H/H1/X Register
+router.get('/schedule-h1-register', async (req, res) => {
   const shopId = tenantShopId(req);
   const { startDate, endDate } = req.query;
-  const entries = [];
 
-  const invoices = memStore.sales_invoices.filter((b) => b.shop_id === shopId);
+  try {
+    let sql = `
+      SELECT sii.id,
+             si.shop_id as "shopId",
+             si.invoice_date as date,
+             si.invoice_no as "invoiceNo",
+             si.customer_name as "patientName",
+             'Local' as "patientAddress",
+             si.doctor_name as "doctorName",
+             si.doctor_reg_no as "doctorRegNo",
+             sii.medicine_name as "drugName",
+             m.generic_name as "genericName",
+             m.schedule_type as "scheduleType",
+             sii.batch_no as "batchNo",
+             sii.qty as "qtySold",
+             m.unit
+      FROM sales_invoice_items sii
+      JOIN sales_invoices si ON sii.invoice_id = si.id
+      JOIN medicines m ON sii.medicine_id = m.id
+      WHERE ($1::uuid IS NULL OR si.shop_id = $1)
+        AND m.schedule_type IN ('H', 'H1', 'X', 'NARCOTIC')
+    `;
+    const params = [shopId];
 
-  for (const invoice of invoices) {
-    if (startDate && invoice.invoice_date < startDate) continue;
-    if (endDate && invoice.invoice_date > endDate) continue;
-
-    for (const item of invoice.items || []) {
-      const med = memStore.medicines.find((m) => m.shop_id === shopId && m.id === item.medicineId);
-      if (med && (med.schedule_type === 'H1' || med.schedule_type === 'X')) {
-        entries.push({
-          id: `${invoice.id}-${item.id || item.batchId}`,
-          shopId: shopId,
-          date: invoice.invoice_date,
-          invoiceNo: invoice.invoice_no,
-          patientName: invoice.customer_name || 'Walk-in',
-          patientAddress: 'New Delhi',
-          doctorName: invoice.doctor_name || 'Dr. S. K. Gupta',
-          doctorRegNo: invoice.doctor_reg_no || 'DMC-29481',
-          drugName: med.name,
-          genericName: med.generic_name,
-          scheduleType: med.schedule_type,
-          batchNo: item.batchNo,
-          qtySold: item.qty,
-          unit: item.unit || 'Strips',
-        });
-      }
+    if (startDate) {
+      params.push(startDate);
+      sql += ` AND si.invoice_date >= $${params.length}`;
     }
-  }
 
-  res.json(entries);
+    if (endDate) {
+      params.push(endDate);
+      sql += ` AND si.invoice_date <= $${params.length}`;
+    }
+
+    sql += ` ORDER BY si.invoice_date DESC, si.created_at DESC`;
+
+    const { rows } = await query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get schedule H1 register error:', err);
+    res.status(500).json({ error: 'Failed to load Schedule H1 compliance register: ' + err.message });
+  }
 });
 
-// POST /api/prescriptions - Record a new prescription
-router.post('/', authMiddleware, (req, res) => {
+// POST /api/prescriptions
+router.post('/', async (req, res) => {
   const shopId = tenantShopId(req);
   const {
     customerId,
     patientName,
-    patientAge,
-    patientGender,
     doctorName,
     doctorRegNo,
-    hospitalClinic,
-    prescriptionDate,
+    prescriptionDate = new Date().toISOString().slice(0, 10),
     imageData,
-    notes,
+    notes = '',
   } = req.body;
 
   if (!patientName || !doctorName || !doctorRegNo) {
-    return res.status(400).json({ error: 'Patient name, doctor name, and doctor registration number are required' });
+    return res.status(400).json({
+      error: 'Patient name, doctor name, and doctor registration number are required',
+    });
   }
 
-  const shopPrescriptions = memStore.prescriptions.filter((p) => p.shop_id === shopId);
+  try {
+    const finalCustId = customerId && !customerId.startsWith('cust-') ? customerId : null;
+    const rxNo = `RX-${Date.now().toString().slice(-6)}`;
 
-  const newPresc = {
-    id: `pr-${Date.now()}`,
-    shop_id: shopId,
-    prescription_no: `RX-${new Date().getFullYear()}-${String(shopPrescriptions.length + 1).padStart(3, '0')}`,
-    customer_id: customerId || null,
-    patient_name: patientName.trim(),
-    patient_age: parseInt(patientAge) || null,
-    patient_gender: patientGender || 'Male',
-    doctor_name: doctorName.trim(),
-    doctor_reg_no: doctorRegNo.trim(),
-    hospital_clinic: (hospitalClinic || '').trim(),
-    prescription_date: prescriptionDate || new Date().toISOString().slice(0, 10),
-    image_data: imageData || '',
-    notes: (notes || '').trim(),
-    created_at: new Date().toISOString(),
-  };
+    const { rows } = await query(
+      `INSERT INTO prescriptions (
+        shop_id, prescription_no, customer_id, patient_name, doctor_name, doctor_reg_no,
+        prescription_date, image_data, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *`,
+      [
+        shopId,
+        rxNo,
+        finalCustId,
+        patientName.trim(),
+        doctorName.trim(),
+        doctorRegNo.trim(),
+        prescriptionDate,
+        imageData || '',
+        notes ? notes.trim() : '',
+      ]
+    );
 
-  memStore.prescriptions.unshift(newPresc);
-  res.status(201).json(newPresc);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Create prescription error:', err);
+    res.status(500).json({ error: 'Failed to save prescription: ' + err.message });
+  }
 });
 
 module.exports = router;

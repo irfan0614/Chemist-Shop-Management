@@ -1,5 +1,5 @@
 const express = require('express');
-const { memStore } = require('../db/pool');
+const { query, connect } = require('../db/pool');
 const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
@@ -22,64 +22,71 @@ function getBatchStatus(expiryDate, currentStock, reorderLevel = 15) {
   return { status, daysLeft: days, isLowStock };
 }
 
-// GET /api/batches - List all batches with filters (Tenant Scoped)
-router.get('/', authMiddleware, (req, res) => {
+// GET /api/batches - List all batches with filters (Database Driven)
+router.get('/', async (req, res) => {
   try {
     const currentShopId = tenantShopId(req);
     const { medicineId, search, status, rack } = req.query;
-    let list = memStore.batches;
+
+    let sql = `
+      SELECT b.id, b.medicine_id as "medicineId", b.batch_no as "batchNo",
+             b.mfg_date as "mfgDate", b.expiry_date as "expiryDate",
+             b.purchase_cost::float as "purchaseCost", b.mrp::float as mrp,
+             b.selling_price::float as "sellingPrice", b.current_stock as "currentStock",
+             b.rack_shelf as "rackShelf", b.is_blocked as "isBlocked",
+             m.name as "medicineName", m.generic_name as "genericName",
+             m.brand, m.dosage_form as "dosageForm", m.pack_size as "packSize",
+             m.unit, m.gst_rate as "gstRate", m.schedule_type as "scheduleType",
+             m.reorder_level as "reorderLevel"
+      FROM medicine_batches b
+      JOIN medicines m ON b.medicine_id = m.id
+      WHERE 1=1
+    `;
+    const params = [];
 
     if (currentShopId) {
-      list = list.filter((b) => b.shop_id === currentShopId);
+      params.push(currentShopId);
+      sql += ` AND b.shop_id = $${params.length}`;
     }
 
     if (medicineId) {
-      list = list.filter((b) => b.medicine_id === medicineId);
+      params.push(medicineId);
+      sql += ` AND b.medicine_id = $${params.length}`;
     }
 
     if (rack) {
-      list = list.filter((b) => (b.rack_shelf || '').toLowerCase().includes(rack.toLowerCase()));
+      params.push(`%${rack.trim().toLowerCase()}%`);
+      sql += ` AND lower(b.rack_shelf) LIKE $${params.length}`;
     }
 
-    let enriched = list.map((b) => {
-      const med = memStore.medicines.find((m) => m.id === b.medicine_id && (!currentShopId || m.shop_id === currentShopId)) || {};
-      const { status: expStatus, daysLeft, isLowStock } = getBatchStatus(b.expiry_date, b.current_stock, med.reorder_level);
+    if (search) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      sql += ` AND (
+        lower(m.name) LIKE $${params.length} OR
+        lower(m.generic_name) LIKE $${params.length} OR
+        lower(b.batch_no) LIKE $${params.length} OR
+        lower(b.rack_shelf) LIKE $${params.length}
+      )`;
+    }
+
+    sql += ` ORDER BY b.expiry_date ASC`;
+
+    const { rows } = await query(sql, params);
+
+    let enriched = rows.map((b) => {
+      const { status: expStatus, daysLeft, isLowStock } = getBatchStatus(
+        b.expiryDate,
+        b.currentStock,
+        b.reorderLevel
+      );
       return {
-        id: b.id,
-        medicineId: b.medicine_id,
-        medicineName: med.name || 'Unknown',
-        genericName: med.generic_name || '',
-        brand: med.brand || '',
-        dosageForm: med.dosage_form || 'Tablet',
-        packSize: med.pack_size || 10,
-        unit: med.unit || 'Strips',
-        gstRate: med.gst_rate || 12.0,
-        scheduleType: med.schedule_type || 'NONE',
-        batchNo: b.batch_no,
-        mfgDate: b.mfg_date,
-        expiryDate: b.expiry_date,
-        purchaseCost: Number(b.purchase_cost),
-        mrp: Number(b.mrp),
-        sellingPrice: Number(b.selling_price),
-        currentStock: Number(b.current_stock),
-        rackShelf: b.rack_shelf || '—',
-        isBlocked: !!b.is_blocked,
+        ...b,
+        rackShelf: b.rackShelf || '—',
         expiryStatus: expStatus,
         daysToExpiry: daysLeft,
         isLowStock,
       };
     });
-
-    if (search) {
-      const q = search.trim().toLowerCase();
-      enriched = enriched.filter(
-        (b) =>
-          b.medicineName.toLowerCase().includes(q) ||
-          b.genericName.toLowerCase().includes(q) ||
-          b.batchNo.toLowerCase().includes(q) ||
-          b.rackShelf.toLowerCase().includes(q)
-      );
-    }
 
     if (status === 'EXPIRED') {
       enriched = enriched.filter((b) => b.expiryStatus === 'EXPIRED');
@@ -89,140 +96,98 @@ router.get('/', authMiddleware, (req, res) => {
       enriched = enriched.filter((b) => b.isLowStock);
     }
 
-    // Sort FEFO by default (Earliest expiring first)
-    enriched.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
-
     res.json(enriched);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to load batch inventory' });
+    console.error('Get batches error:', err);
+    res.status(500).json({ error: 'Failed to load batch inventory: ' + err.message });
   }
 });
 
-// GET /api/batches/fefo/:medicineId - Get FEFO batches for POS
-router.get('/fefo/:medicineId', authMiddleware, (req, res) => {
+// PUT /api/batches/:id/stock - Stock Adjustment with Audit
+router.put('/:id/stock', requireRole(['SHOP_OWNER', 'ADMIN']), async (req, res) => {
   const currentShopId = tenantShopId(req);
-  const { medicineId } = req.params;
-  const batches = memStore.batches
-    .filter(
-      (b) =>
-        b.medicine_id === medicineId &&
-        (!currentShopId || b.shop_id === currentShopId) &&
-        !b.is_blocked &&
-        Number(b.current_stock) > 0
-    )
-    .map((b) => {
-      const days = getDaysUntil(b.expiry_date);
-      return {
-        id: b.id,
-        batchNo: b.batch_no,
-        expiryDate: b.expiry_date,
-        purchaseCost: Number(b.purchase_cost),
-        mrp: Number(b.mrp),
-        sellingPrice: Number(b.selling_price),
-        currentStock: Number(b.current_stock),
-        rackShelf: b.rack_shelf,
-        daysLeft: days,
-        isExpired: days < 0,
-      };
-    })
-    .filter((b) => !b.isExpired) // Block expired batches from POS
-    .sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  const { newStock, reason = 'Physical Count Adjustment', notes = '' } = req.body;
 
-  res.json(batches);
-});
-
-// POST /api/batches - Add a new batch manually
-router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
-  const { medicineId, batchNo, mfgDate, expiryDate, purchaseCost, mrp, sellingPrice, currentStock, rackShelf } = req.body;
-
-  if (!medicineId || !batchNo || !expiryDate || currentStock === undefined) {
-    return res.status(400).json({ error: 'Medicine, batch number, expiry date, and current stock are required' });
+  if (newStock === undefined || parseInt(newStock) < 0) {
+    return res.status(400).json({ error: 'Valid non-negative stock quantity is required' });
   }
 
-  const existing = memStore.batches.find(
-    (b) => b.medicine_id === medicineId && b.batch_no.toLowerCase() === batchNo.trim().toLowerCase()
-  );
+  const client = await connect();
+  try {
+    await client.query('BEGIN');
 
-  if (existing) {
-    return res.status(400).json({ error: `Batch "${batchNo}" already exists for this medicine. Update stock instead.` });
+    const { rows: batchRows } = await client.query(
+      `SELECT * FROM medicine_batches WHERE id = $1 AND ($2::uuid IS NULL OR shop_id = $2)`,
+      [req.params.id, currentShopId]
+    );
+
+    if (batchRows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Batch not found' });
+    }
+
+    const batch = batchRows[0];
+    const prevStock = Number(batch.current_stock);
+    const targetStock = parseInt(newStock);
+    const diff = targetStock - prevStock;
+
+    const { rows: updatedRows } = await client.query(
+      `UPDATE medicine_batches SET current_stock = $1, updated_at = now() WHERE id = $2 RETURNING *`,
+      [targetStock, batch.id]
+    );
+
+    // Record Stock Movement
+    await client.query(
+      `INSERT INTO stock_movements (
+        shop_id, medicine_id, batch_id, movement_type, quantity,
+        balance_after, reference_no, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        currentShopId,
+        batch.medicine_id,
+        batch.id,
+        diff >= 0 ? 'AUDIT_ADD' : 'AUDIT_REDUCE',
+        Math.abs(diff),
+        targetStock,
+        'STOCK_ADJUSTMENT',
+        `${reason}: ${notes}`,
+      ]
+    ).catch(() => {});
+
+    await client.query('COMMIT');
+    res.json({
+      message: 'Batch stock adjusted successfully',
+      batch: updatedRows[0],
+      previousStock: prevStock,
+      newStock: targetStock,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Adjust stock error:', err);
+    res.status(500).json({ error: 'Failed to adjust stock: ' + err.message });
+  } finally {
+    client.release();
   }
-
-  const newBatch = {
-    id: `b-${Date.now()}`,
-    medicine_id: medicineId,
-    batch_no: batchNo.trim(),
-    mfg_date: mfgDate || null,
-    expiry_date: expiryDate,
-    purchase_cost: parseFloat(purchaseCost) || 0,
-    mrp: parseFloat(mrp) || parseFloat(sellingPrice) || 0,
-    selling_price: parseFloat(sellingPrice) || parseFloat(mrp) || 0,
-    current_stock: parseInt(currentStock) || 0,
-    rack_shelf: (rackShelf || '').trim(),
-    is_blocked: false,
-  };
-
-  memStore.batches.push(newBatch);
-
-  // Audit log
-  memStore.audit_logs.unshift({
-    id: `al-${Date.now()}`,
-    user_id: req.user?.id,
-    user_name: req.user?.name,
-    action: 'CREATE_BATCH',
-    entity_type: 'BATCH',
-    entity_id: newBatch.id,
-    new_values: { batch_no: newBatch.batch_no, stock: newBatch.current_stock },
-    created_at: new Date().toISOString(),
-  });
-
-  res.status(201).json(newBatch);
 });
 
-// PUT /api/batches/:id/adjust-stock - Stock adjustment (Physical audit verification)
-router.put('/:id/adjust-stock', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
-  const batch = memStore.batches.find((b) => b.id === req.params.id);
-  if (!batch) return res.status(404).json({ error: 'Batch not found' });
+// PUT /api/batches/:id/toggle-block - Lock batch from dispensing
+router.put('/:id/toggle-block', requireRole(['SHOP_OWNER', 'ADMIN']), async (req, res) => {
+  const currentShopId = tenantShopId(req);
+  try {
+    const { rows } = await query(
+      `UPDATE medicine_batches
+       SET is_blocked = NOT is_blocked, updated_at = now()
+       WHERE id = $1 AND ($2::uuid IS NULL OR shop_id = $2)
+       RETURNING id, is_blocked as "isBlocked"`,
+      [req.params.id, currentShopId]
+    );
 
-  const { newStock, reason } = req.body;
-  if (newStock === undefined || newStock < 0) {
-    return res.status(400).json({ error: 'Valid non-negative stock count is required' });
+    if (rows.length === 0) return res.status(404).json({ error: 'Batch not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Toggle batch lock error:', err);
+    res.status(500).json({ error: 'Failed to update batch lock status: ' + err.message });
   }
-
-  const oldStock = Number(batch.current_stock);
-  const diff = Number(newStock) - oldStock;
-  batch.current_stock = parseInt(newStock);
-
-  // Record audit & stock movement
-  memStore.audit_logs.unshift({
-    id: `al-${Date.now()}`,
-    user_id: req.user?.id,
-    user_name: req.user?.name,
-    action: 'STOCK_ADJUSTMENT',
-    entity_type: 'BATCH',
-    entity_id: batch.id,
-    old_values: { stock: oldStock },
-    new_values: { stock: batch.current_stock, difference: diff, reason: reason || 'Physical stock audit' },
-    created_at: new Date().toISOString(),
-  });
-
-  res.json({
-    id: batch.id,
-    batchNo: batch.batch_no,
-    oldStock,
-    newStock: batch.current_stock,
-    difference: diff,
-    message: 'Stock adjusted successfully',
-  });
-});
-
-// PUT /api/batches/:id/toggle-block - Block or unblock batch
-router.put('/:id/toggle-block', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
-  const batch = memStore.batches.find((b) => b.id === req.params.id);
-  if (!batch) return res.status(404).json({ error: 'Batch not found' });
-
-  batch.is_blocked = !batch.is_blocked;
-  res.json({ id: batch.id, isBlocked: batch.is_blocked });
 });
 
 module.exports = router;

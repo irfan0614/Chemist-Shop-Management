@@ -1,23 +1,28 @@
 const express = require('express');
-const { memStore } = require('../db/pool');
+const { query } = require('../db/pool');
 const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 router.use(authMiddleware);
 
-// GET /api/settings (Gets current shop's settings)
-router.get('/', authMiddleware, (req, res) => {
-  const shopId = tenantShopId(req) || '11111111-1111-1111-1111-111111111111';
-  const shop = memStore.shops.find((s) => s.id === shopId) || memStore.shops[0];
-  res.json(shop);
+// GET /api/settings - Current shop settings from PostgreSQL
+router.get('/', async (req, res) => {
+  const shopId = tenantShopId(req);
+  try {
+    const { rows } = await query('SELECT * FROM shops WHERE id = $1', [shopId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Shop settings not found' });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Get settings error:', err);
+    res.status(500).json({ error: 'Failed to retrieve shop settings: ' + err.message });
+  }
 });
 
-// PUT /api/settings (Updates current shop's settings)
-router.put('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER']), (req, res) => {
-  const shopId = tenantShopId(req) || '11111111-1111-1111-1111-111111111111';
-  const shop = memStore.shops.find((s) => s.id === shopId);
-  if (!shop) return res.status(404).json({ error: 'Shop not found' });
-
+// PUT /api/settings - Update current shop settings
+router.put('/', requireRole(['ADMIN', 'SHOP_OWNER', 'SUPER_ADMIN']), async (req, res) => {
+  const shopId = tenantShopId(req);
   const {
     shop_name,
     tagline,
@@ -48,50 +53,85 @@ router.put('/', authMiddleware, requireRole(['ADMIN', 'SHOP_OWNER']), (req, res)
     dl_expiry_date,
   } = req.body;
 
-  if (shop_name) shop.shop_name = shop_name.trim();
-  if (tagline !== undefined) shop.tagline = tagline.trim();
-  if (owner_name !== undefined) shop.owner_name = owner_name.trim();
-  if (dl_number_20b !== undefined) shop.dl_number_20b = dl_number_20b.trim();
-  if (dl_number_21b !== undefined) shop.dl_number_21b = dl_number_21b.trim();
-  if (gstin !== undefined) shop.gstin = gstin.trim().toUpperCase();
-  if (fssai_no !== undefined) shop.fssai_no = fssai_no.trim();
-  if (pan_no !== undefined) shop.pan_no = pan_no.trim().toUpperCase();
-  if (phone !== undefined) shop.phone = phone.trim();
-  if (alt_phone !== undefined) shop.alt_phone = alt_phone.trim();
-  if (email !== undefined) shop.email = email.trim();
-  if (address !== undefined) shop.address = address.trim();
-  if (city !== undefined) shop.city = city.trim();
-  if (state !== undefined) shop.state = state.trim();
-  if (state_code !== undefined) shop.state_code = state_code.trim();
-  if (pincode !== undefined) shop.pincode = pincode.trim();
-  if (bill_prefix !== undefined) shop.bill_prefix = bill_prefix.trim() || 'INV';
-  if (purchase_prefix !== undefined) shop.purchase_prefix = purchase_prefix.trim() || 'PUR';
-  if (return_prefix !== undefined) shop.return_prefix = return_prefix.trim() || 'SRT';
-  if (default_low_stock_threshold !== undefined) shop.default_low_stock_threshold = parseInt(default_low_stock_threshold) || 15;
-  if (default_expiry_alert_days !== undefined) shop.default_expiry_alert_days = parseInt(default_expiry_alert_days) || 90;
-  if (thermal_printer_size !== undefined) shop.thermal_printer_size = thermal_printer_size;
-  if (invoice_terms !== undefined) shop.invoice_terms = invoice_terms;
-  if (enable_fefo !== undefined) shop.enable_fefo = !!enable_fefo;
-  if (allow_negative_stock !== undefined) shop.allow_negative_stock = !!allow_negative_stock;
-  if (require_doctor_on_schedule_h !== undefined) shop.require_doctor_on_schedule_h = !!require_doctor_on_schedule_h;
-  if (dl_expiry_date !== undefined) shop.dl_expiry_date = dl_expiry_date;
+  try {
+    const { rows } = await query(
+      `UPDATE shops SET
+        shop_name = COALESCE($1, shop_name),
+        tagline = COALESCE($2, tagline),
+        owner_name = COALESCE($3, owner_name),
+        dl_number_20b = COALESCE($4, dl_number_20b),
+        dl_number_21b = COALESCE($5, dl_number_21b),
+        gstin = COALESCE($6, gstin),
+        fssai_no = COALESCE($7, fssai_no),
+        pan_no = COALESCE($8, pan_no),
+        phone = COALESCE($9, phone),
+        alt_phone = COALESCE($10, alt_phone),
+        email = COALESCE($11, email),
+        address = COALESCE($12, address),
+        city = COALESCE($13, city),
+        state = COALESCE($14, state),
+        state_code = COALESCE($15, state_code),
+        pincode = COALESCE($16, pincode),
+        bill_prefix = COALESCE($17, bill_prefix),
+        purchase_prefix = COALESCE($18, purchase_prefix),
+        return_prefix = COALESCE($19, return_prefix),
+        default_low_stock_threshold = COALESCE($20, default_low_stock_threshold),
+        default_expiry_alert_days = COALESCE($21, default_expiry_alert_days),
+        thermal_printer_size = COALESCE($22, thermal_printer_size),
+        invoice_terms = COALESCE($23, invoice_terms),
+        enable_fefo = COALESCE($24, enable_fefo),
+        allow_negative_stock = COALESCE($25, allow_negative_stock),
+        require_doctor_on_schedule_h = COALESCE($26, require_doctor_on_schedule_h),
+        dl_expiry_date = COALESCE($27, dl_expiry_date),
+        updated_at = now()
+       WHERE id = $28
+       RETURNING *`,
+      [
+        shop_name !== undefined ? shop_name.trim() : null,
+        tagline !== undefined ? tagline.trim() : null,
+        owner_name !== undefined ? owner_name.trim() : null,
+        dl_number_20b !== undefined ? dl_number_20b.trim() : null,
+        dl_number_21b !== undefined ? dl_number_21b.trim() : null,
+        gstin !== undefined ? gstin.trim().toUpperCase() : null,
+        fssai_no !== undefined ? fssai_no.trim() : null,
+        pan_no !== undefined ? pan_no.trim().toUpperCase() : null,
+        phone !== undefined ? phone.trim() : null,
+        alt_phone !== undefined ? alt_phone.trim() : null,
+        email !== undefined ? email.trim() : null,
+        address !== undefined ? address.trim() : null,
+        city !== undefined ? city.trim() : null,
+        state !== undefined ? state.trim() : null,
+        state_code !== undefined ? state_code.trim() : null,
+        pincode !== undefined ? pincode.trim() : null,
+        bill_prefix !== undefined ? bill_prefix.trim() : null,
+        purchase_prefix !== undefined ? purchase_prefix.trim() : null,
+        return_prefix !== undefined ? return_prefix.trim() : null,
+        default_low_stock_threshold !== undefined ? parseInt(default_low_stock_threshold) : null,
+        default_expiry_alert_days !== undefined ? parseInt(default_expiry_alert_days) : null,
+        thermal_printer_size || null,
+        invoice_terms !== undefined ? invoice_terms : null,
+        enable_fefo !== undefined ? Boolean(enable_fefo) : null,
+        allow_negative_stock !== undefined ? Boolean(allow_negative_stock) : null,
+        require_doctor_on_schedule_h !== undefined ? Boolean(require_doctor_on_schedule_h) : null,
+        dl_expiry_date || null,
+        shopId,
+      ]
+    );
 
-  shop.updated_at = new Date().toISOString();
+    if (rows.length === 0) return res.status(404).json({ error: 'Shop not found' });
 
-  // Audit log
-  memStore.audit_logs.unshift({
-    id: `al-${Date.now()}`,
-    shop_id: shop.id,
-    user_id: req.user?.id,
-    user_name: req.user?.name,
-    action: 'UPDATE_SETTINGS',
-    entity_type: 'SETTINGS',
-    entity_id: shop.id,
-    created_at: new Date().toISOString(),
-  });
+    // Record audit log
+    await query(
+      `INSERT INTO audit_logs (shop_id, user_id, user_name, action, entity_type, entity_id)
+       VALUES ($1, $2, $3, 'UPDATE_SETTINGS', 'SETTINGS', $4)`,
+      [shopId, req.user?.id, req.user?.name, shopId]
+    ).catch(() => {});
 
-  res.json(shop);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Update settings error:', err);
+    res.status(500).json({ error: 'Failed to update settings: ' + err.message });
+  }
 });
 
 module.exports = router;
-

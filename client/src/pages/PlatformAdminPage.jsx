@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { Button } from '../components/common/Button';
 
 export function PlatformAdminPage({ onSwitchShop }) {
   const { showSuccess, showError } = useToast();
@@ -45,21 +46,21 @@ export function PlatformAdminPage({ onSwitchShop }) {
   // New Shop Form State
   const [newShopForm, setNewShopForm] = useState({
     name: '',
-    tagline: 'Your Trusted Pharmacy & Healthcare Partner',
+    tagline: '',
     phone: '',
     email: '',
     address: '',
-    city: 'New Delhi',
-    state: 'Delhi',
-    state_code: '07',
+    city: '',
+    state: '',
+    state_code: '',
     pincode: '',
     gstin: '',
     dl_number_20b: '',
     dl_number_21b: '',
     fssai_no: '',
-    drug_license_expiry: '2028-12-31',
+    drug_license_expiry: '',
     plan: 'PRO',
-    subscription_expiry: '2027-12-31',
+    subscription_expiry: '',
     // Owner details
     owner_name: '',
     owner_email: '',
@@ -112,25 +113,26 @@ export function PlatformAdminPage({ onSwitchShop }) {
     e.preventDefault();
     try {
       const res = await api.post('/platform/shops', newShopForm);
-      showSuccess(`Medical Store "${res.shop.name}" successfully registered! Owner account created.`);
+      const savedName = res?.shop?.name || res?.shop_name || res?.name || newShopForm.name;
+      showSuccess(`Medical Store "${savedName}" successfully registered! Owner account created.`);
       setIsRegisterOpen(false);
       setNewShopForm({
         name: '',
-        tagline: 'Your Trusted Pharmacy & Healthcare Partner',
+        tagline: '',
         phone: '',
         email: '',
         address: '',
-        city: 'New Delhi',
-        state: 'Delhi',
-        state_code: '07',
+        city: '',
+        state: '',
+        state_code: '',
         pincode: '',
         gstin: '',
         dl_number_20b: '',
         dl_number_21b: '',
         fssai_no: '',
-        drug_license_expiry: '2028-12-31',
+        drug_license_expiry: '',
         plan: 'PRO',
-        subscription_expiry: '2027-12-31',
+        subscription_expiry: '',
         owner_name: '',
         owner_email: '',
         owner_phone: '',
@@ -247,20 +249,21 @@ export function PlatformAdminPage({ onSwitchShop }) {
         </div>
 
         <div className="relative z-10 flex flex-wrap items-center gap-3">
-          <button
+          <Button
+            variant="dark"
             onClick={loadPlatformData}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-700/80 flex items-center gap-2"
+            icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
+            className="border border-slate-700/80"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-          <button
+            Refresh
+          </Button>
+          <Button
+            variant="gradient"
             onClick={() => setIsRegisterOpen(true)}
-            className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-900/40 transition-all transform active:scale-95 flex items-center gap-2"
+            icon={Plus}
           >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Register Medical Shop</span>
-          </button>
+            Register Medical Shop
+          </Button>
         </div>
       </div>
 
@@ -507,35 +510,34 @@ export function PlatformAdminPage({ onSwitchShop }) {
 
                       <td className="py-4 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
                             onClick={() => handleOpenEdit(shop)}
-                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            className="text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
                             title="Edit Medical Store"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
+                            icon={Edit3}
+                          />
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
                             onClick={() => handleOpenPasswordReset(shop)}
-                            className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            className="text-slate-500 hover:text-amber-600 hover:bg-amber-50"
                             title="Reset Owner Password"
-                          >
-                            <KeyRound className="w-4 h-4" />
-                          </button>
-                          <button
+                            icon={KeyRound}
+                          />
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
                             onClick={() => handleToggleStatus(shop)}
-                            className={`p-1.5 rounded-lg transition-colors ${
+                            className={
                               shop.status === 'ACTIVE'
                                 ? 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
                                 : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50'
-                            }`}
+                            }
                             title={shop.status === 'ACTIVE' ? 'Suspend Store' : 'Activate Store'}
-                          >
-                            {shop.status === 'ACTIVE' ? (
-                              <XCircle className="w-4 h-4" />
-                            ) : (
-                              <CheckCircle2 className="w-4 h-4" />
-                            )}
-                          </button>
+                            icon={shop.status === 'ACTIVE' ? XCircle : CheckCircle2}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -755,19 +757,18 @@ export function PlatformAdminPage({ onSwitchShop }) {
 
               {/* Submit Button */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => setIsRegisterOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-md shadow-emerald-900/30"
+                  variant="gradient"
                 >
                   Confirm & Register Medical Shop
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -871,19 +872,18 @@ export function PlatformAdminPage({ onSwitchShop }) {
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => setIsEditOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-900/30"
+                  variant="indigo"
                 >
                   Save Changes
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -930,19 +930,18 @@ export function PlatformAdminPage({ onSwitchShop }) {
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => setIsPasswordModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md shadow-amber-950/20"
+                  variant="warning"
                 >
                   Reset Password
-                </button>
+                </Button>
               </div>
             </form>
           </div>

@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
+import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { fmtMoney, fmtDate } from '../utils/formatters';
 
@@ -212,13 +213,14 @@ export function PurchasesPage() {
       sortable: false,
       exportable: false,
       render: (p) => (
-        <button
+        <Button
+          size="icon-sm"
+          variant="ghost"
           onClick={() => setViewInvoice(p)}
-          className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+          className="text-slate-500 hover:text-emerald-700 hover:bg-emerald-50"
           title="View Detail"
-        >
-          <Eye className="w-3.5 h-3.5" />
-        </button>
+          icon={Eye}
+        />
       ),
     },
   ];
@@ -232,13 +234,14 @@ export function PurchasesPage() {
           <p className="text-xs text-slate-400">Record supplier purchase bills, 10+1 free schemes, and batch stock entries</p>
         </div>
 
-        <button
+        <Button
+          variant="primary"
+          size="sm"
+          icon={Plus}
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
         >
-          <Plus className="w-4 h-4" />
-          <span>New Inward Purchase Entry</span>
-        </button>
+          New Inward Purchase Entry
+        </Button>
       </div>
 
       {/* Main Table */}
@@ -476,18 +479,18 @@ export function PurchasesPage() {
 
           {/* Action Buttons */}
           <div className="pt-2 border-t border-slate-200 flex justify-end gap-2">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setIsAddModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSavePurchase}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20"
             >
               Save Inward Purchase
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

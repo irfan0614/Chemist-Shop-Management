@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useShop } from '../context/ShopContext';
 import { DataTable } from '../components/common/DataTable';
 import { Badge } from '../components/common/Badge';
+import { Button } from '../components/common/Button';
 import { fmtMoney, fmtDate } from '../utils/formatters';
 import { InvoicePreviewModal } from '../components/pos/InvoicePreviewModal';
 
@@ -86,20 +87,22 @@ export function SalesHistoryPage() {
       exportable: false,
       render: (b) => (
         <div className="flex items-center justify-center gap-1.5">
-          <button
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            icon={Printer}
             onClick={() => handleReprint(b)}
-            className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+            className="text-slate-500 hover:text-emerald-700 hover:bg-emerald-50"
             title="Reprint Receipt"
-          >
-            <Printer className="w-3.5 h-3.5" />
-          </button>
-          <button
+          />
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            icon={Eye}
             onClick={() => setViewBill(b)}
-            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+            className="text-slate-500 hover:text-slate-900 hover:bg-slate-100"
             title="View & Print Preview"
-          >
-            <Eye className="w-3.5 h-3.5" />
-          </button>
+          />
         </div>
       ),
     },

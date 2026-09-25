@@ -19,30 +19,41 @@ export function A4TaxInvoice({ invoice, settings, preview = false }) {
       <div className="flex justify-between items-start border-b-2 border-black pb-3 mb-3">
         <div>
           <h2 className="text-xl font-black uppercase text-emerald-950 tracking-tight">
-            {currentSettings.shop_name || 'Apollo Health Chemist & Druggist'}
+            {currentSettings.shop_name || 'Medical Store'}
           </h2>
           {currentSettings.tagline && (
             <div className="text-xs font-semibold text-slate-700">{currentSettings.tagline}</div>
           )}
-          <div className="text-xs text-slate-700 mt-1">
-            {currentSettings.address}, {currentSettings.city}, {currentSettings.state} - {currentSettings.pincode}
-          </div>
-          <div className="text-xs text-slate-700">
-            Phone: {currentSettings.phone} {currentSettings.email ? `| Email: ${currentSettings.email}` : ''}
-          </div>
-          <div className="text-xs font-bold text-black mt-1">
-            DL Nos: {currentSettings.dl_number_20b || 'DL-20B-129482'} (20B), {currentSettings.dl_number_21b || 'DL-21B-129483'} (21B){' '}
-            {currentSettings.fssai_no ? `| FSSAI: ${currentSettings.fssai_no}` : ''}
-          </div>
+          {(currentSettings.address || currentSettings.city || currentSettings.state) && (
+            <div className="text-xs text-slate-700 mt-1">
+              {[currentSettings.address, currentSettings.city, currentSettings.state ? `${currentSettings.state}${currentSettings.pincode ? ` - ${currentSettings.pincode}` : ''}` : currentSettings.pincode].filter(Boolean).join(', ')}
+            </div>
+          )}
+          {(currentSettings.phone || currentSettings.email) && (
+            <div className="text-xs text-slate-700">
+              {currentSettings.phone ? `Phone: ${currentSettings.phone}` : ''} {currentSettings.email ? `| Email: ${currentSettings.email}` : ''}
+            </div>
+          )}
+          {(currentSettings.dl_number_20b || currentSettings.dl_number_21b || currentSettings.fssai_no) && (
+            <div className="text-xs font-bold text-black mt-1">
+              {currentSettings.dl_number_20b ? `DL 20B: ${currentSettings.dl_number_20b} ` : ''}
+              {currentSettings.dl_number_21b ? `| DL 21B: ${currentSettings.dl_number_21b} ` : ''}
+              {currentSettings.fssai_no ? `| FSSAI: ${currentSettings.fssai_no}` : ''}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <div className="inline-block border-2 border-black px-3 py-1 font-bold text-sm uppercase bg-slate-100">
             {invoice.bill_type || 'TAX INVOICE'}
           </div>
-          <div className="text-xs font-mono font-bold mt-2">GSTIN: {currentSettings.gstin || '07AAAAA0000A1Z5'}</div>
-          <div className="text-xs text-slate-700">
-            State: {currentSettings.state || 'Delhi'} (Code: {currentSettings.state_code || '07'})
-          </div>
+          {currentSettings.gstin && (
+            <div className="text-xs font-mono font-bold mt-2">GSTIN: {currentSettings.gstin}</div>
+          )}
+          {currentSettings.state && (
+            <div className="text-xs text-slate-700">
+              State: {currentSettings.state} {currentSettings.state_code ? `(Code: ${currentSettings.state_code})` : ''}
+            </div>
+          )}
         </div>
       </div>
 
@@ -168,7 +179,7 @@ export function A4TaxInvoice({ invoice, settings, preview = false }) {
           Generated via Chemist Shop ERP · Pharmacist Verified
         </div>
         <div className="text-center font-bold text-xs">
-          <div className="mb-6 font-sans">For {currentSettings.shop_name || 'Apollo Health Chemist'}</div>
+          <div className="mb-6 font-sans">For {currentSettings.shop_name || 'Authorized Pharmacy'}</div>
           <div className="border-t border-black pt-1 px-8 font-sans text-[11px]">
             Authorized Signatory / Registered Pharmacist
           </div>

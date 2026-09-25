@@ -64,12 +64,16 @@ export function Header({ setView, onOpenShortcuts, onToggleMobileMenu, mobileDra
           <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-semibold text-slate-700 bg-slate-100/80 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200/60 min-w-0">
             <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span className="font-bold truncate max-w-[110px] sm:max-w-[180px] md:max-w-[220px]">
-              {settings.shop_name || 'Pharmacy'}
+              {settings?.shop_name || user?.shop?.name || 'Pharmacy'}
             </span>
-            <span className="text-slate-300 hidden sm:inline">|</span>
-            <span className="text-slate-500 font-mono text-[11px] hidden sm:inline truncate max-w-[90px]">
-              {settings.city || 'New Delhi'}
-            </span>
+            {(settings?.city || user?.shop?.city) && (
+              <>
+                <span className="text-slate-300 hidden sm:inline">|</span>
+                <span className="text-slate-500 font-mono text-[11px] hidden sm:inline truncate max-w-[90px]">
+                  {settings?.city || user?.shop?.city}
+                </span>
+              </>
+            )}
           </div>
         )}
 

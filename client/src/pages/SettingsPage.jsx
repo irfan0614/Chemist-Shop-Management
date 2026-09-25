@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Save, Printer, Shield, Building2 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { useToast } from '../context/ToastContext';
+import { Button } from '../components/common/Button';
 
 export function SettingsPage() {
   const { settings, updateSettings } = useShop();
   const { showSuccess, showError } = useToast();
-  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState(settings);
 
@@ -15,14 +15,11 @@ export function SettingsPage() {
   }, [settings]);
 
   const handleSave = async () => {
-    setSaving(true);
     try {
       await updateSettings(form);
       showSuccess('Pharmacy settings and compliance numbers updated successfully!');
     } catch (err) {
       showError('Failed to save settings: ' + err.message);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -34,14 +31,15 @@ export function SettingsPage() {
           <h1 className="text-base font-extrabold text-slate-900">Shop Profile & Pharmacy Configuration</h1>
           <p className="text-xs text-slate-400">Drug License 20B/21B numbers, GSTIN, and printer customization</p>
         </div>
-        <button
-          disabled={saving}
+        <Button
           onClick={handleSave}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20 disabled:opacity-50 transition-all shrink-0"
+          variant="primary"
+          icon={Save}
+          loadingText="Saving…"
+          className="shrink-0"
         >
-          <Save className="w-4 h-4" />
-          <span>{saving ? 'Saving…' : 'Save Settings'}</span>
-        </button>
+          Save Settings
+        </Button>
       </div>
 
       {/* Main Settings Form */}

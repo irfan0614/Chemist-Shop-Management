@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
+import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { fmtMoney } from '../utils/formatters';
 
@@ -136,16 +137,18 @@ export function CustomersPage() {
       sortable: false,
       exportable: false,
       render: (c) => (
-        <button
+        <Button
+          size="xs"
+          variant="primary"
           onClick={() => {
             setCollectCust(c);
             setCollectAmount(c.currentBalance.toString());
           }}
           disabled={c.currentBalance <= 0}
-          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 disabled:opacity-40 disabled:pointer-events-none rounded-lg text-xs font-bold transition-colors"
+          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold border border-emerald-200"
         >
           Collect Due
-        </button>
+        </Button>
       ),
     },
   ];
@@ -159,13 +162,14 @@ export function CustomersPage() {
           <p className="text-xs text-slate-400">Manage patient credit accounts, due payment receipts, and loyalty discounts</p>
         </div>
 
-        <button
+        <Button
+          variant="primary"
+          size="sm"
+          icon={Plus}
           onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
         >
-          <Plus className="w-4 h-4" />
-          <span>Add New Customer</span>
-        </button>
+          Add New Customer
+        </Button>
       </div>
 
       {/* Main Table */}
@@ -270,18 +274,18 @@ export function CustomersPage() {
           </div>
 
           <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setIsAddModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSaveCustomer}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20"
             >
               Save Customer
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -330,18 +334,18 @@ export function CustomersPage() {
           </div>
 
           <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setCollectCust(null)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleCollectPayment}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20"
             >
               Confirm Collection Receipt
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

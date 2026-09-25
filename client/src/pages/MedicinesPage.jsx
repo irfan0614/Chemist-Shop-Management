@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
+import { Button } from '../components/common/Button';
 import { Badge, DrugScheduleBadge } from '../components/common/Badge';
 import { fmtMoney, fmtDate } from '../utils/formatters';
 import { BulkMedicineExcelModal } from '../components/medicines/BulkMedicineExcelModal';
@@ -232,20 +233,22 @@ export function MedicinesPage() {
       align: 'center',
       render: (m) => (
         <div className="flex items-center justify-center gap-1">
-          <button
+          <Button
+            size="icon-sm"
+            variant="ghost"
             onClick={() => handleOpenEdit(m)}
-            className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+            className="text-slate-500 hover:text-emerald-700 hover:bg-emerald-50"
             title="Edit Medicine"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-          </button>
-          <button
+            icon={Edit2}
+          />
+          <Button
+            size="icon-sm"
+            variant="ghost"
             onClick={() => handleDelete(m.id, m.name)}
-            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+            className="text-slate-500 hover:text-rose-600 hover:bg-rose-50"
             title="Deactivate"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+            icon={Trash2}
+          />
         </div>
       ),
     },
@@ -289,43 +292,44 @@ export function MedicinesPage() {
           </select>
 
           {/* Excel Template & Export Controls */}
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Download}
             onClick={triggerExcelTemplateDownload}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all border border-slate-200/80"
             title="Download formatted Excel template for bulk uploading"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Template</span>
-          </button>
+            Template
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
             onClick={() => exportMedicinesToExcel(filteredMedicines)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all border border-slate-200/80"
             title="Export filtered medicines to Excel (.xls)"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Export Excel</span>
-          </button>
+            Export Excel
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            variant="indigo-outline"
+            size="sm"
+            icon={<UploadCloud className="w-4 h-4 text-indigo-600" />}
             onClick={() => setIsExcelModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold rounded-xl text-xs shadow-sm transition-all"
             title="Upload bulk medicines via Excel or CSV"
           >
-            <UploadCloud className="w-4 h-4 text-indigo-600" />
-            <span>Bulk Upload Excel</span>
-          </button>
+            Bulk Upload Excel
+          </Button>
 
-          <button
+          <Button
+            variant="primary"
+            size="sm"
+            icon={Plus}
             onClick={handleOpenAdd}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add New Medicine</span>
-          </button>
+            Add New Medicine
+          </Button>
         </div>
       </div>
 
@@ -559,18 +563,18 @@ export function MedicinesPage() {
 
           {/* Action Buttons */}
           <div className="pt-4 border-t border-slate-200 flex justify-end gap-2">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setModalMode(null)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSave}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20"
             >
               Save Medicine
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

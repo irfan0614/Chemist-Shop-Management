@@ -117,7 +117,7 @@ export function Sidebar({
           {(!collapsed || mobileOpen) && (
             <div className="min-w-0">
               <h1 className="font-extrabold text-sm text-white truncate tracking-tight">
-                {isSuperAdmin ? 'MedCloud Platform' : settings.shop_name || 'Apollo Chemist'}
+                {isSuperAdmin ? 'MedCloud Platform' : settings?.shop_name || 'My Pharmacy'}
               </h1>
               <div className="text-[10px] text-emerald-400 font-semibold tracking-wider uppercase truncate flex items-center gap-1">
                 {isSuperAdmin ? (
@@ -125,7 +125,7 @@ export function Sidebar({
                 ) : (
                   <>
                     <span className="bg-emerald-950 text-emerald-300 px-1 rounded border border-emerald-800/50">
-                      {settings.plan || 'PRO'}
+                      {settings?.plan || 'PRO'}
                     </span>
                     <span>Pharmacy v2.0</span>
                   </>
@@ -226,14 +226,21 @@ export function Sidebar({
       <div className="p-3 border-t border-slate-900 bg-slate-950 text-[11px] text-slate-300">
         {(!collapsed || mobileOpen) ? (
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-slate-300">
-              <span>GSTIN:</span>
-              <span className="font-mono font-bold text-slate-200">{settings.gstin || '07AAAAA0000A1Z5'}</span>
-            </div>
-            <div className="flex items-center justify-between text-slate-300">
-              <span>DL 20B:</span>
-              <span className="font-mono font-bold text-slate-200">{settings.dl_number_20b || 'DL-20B-129482'}</span>
-            </div>
+            {settings?.gstin && (
+              <div className="flex items-center justify-between text-slate-300">
+                <span>GSTIN:</span>
+                <span className="font-mono font-bold text-slate-200">{settings.gstin}</span>
+              </div>
+            )}
+            {settings?.dl_number_20b && (
+              <div className="flex items-center justify-between text-slate-300">
+                <span>DL 20B:</span>
+                <span className="font-mono font-bold text-slate-200">{settings.dl_number_20b}</span>
+              </div>
+            )}
+            {!settings?.gstin && !settings?.dl_number_20b && (
+              <div className="text-slate-500 text-[10px] text-center">Pharmacy ERP System</div>
+            )}
           </div>
         ) : (
           <div className="text-center font-mono text-[10px] text-emerald-400 font-bold">20B/21B</div>

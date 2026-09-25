@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { Button } from '../common/Button';
 import { Badge, DrugScheduleBadge } from '../common/Badge';
 import {
   parseUploadedFile,
@@ -150,14 +151,15 @@ export function BulkMedicineExcelModal({ isOpen, onClose, onSuccess }) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
               onClick={triggerExcelTemplateDownload}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold rounded-xl text-xs shadow-sm hover:border-emerald-400 transition-all"
+              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 hover:border-emerald-400"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download Excel Template</span>
-            </button>
+              Download Excel Template
+            </Button>
           </div>
         </div>
 
@@ -193,24 +195,16 @@ export function BulkMedicineExcelModal({ isOpen, onClose, onSuccess }) {
               Drag and drop your spreadsheet here, or click to browse. Supports <span className="font-mono font-semibold text-slate-700">.xlsx</span>, <span className="font-mono font-semibold text-slate-700">.xls</span>, and <span className="font-mono font-semibold text-slate-700">.csv</span> files.
             </p>
 
-            <button
-              type="button"
+            <Button
+              variant="dark"
+              size="lg"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isProcessingFile}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
+              loading={isProcessingFile}
+              loadingText="Reading Spreadsheet…"
+              icon={Upload}
             >
-              {isProcessingFile ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Reading Spreadsheet…</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  <span>Browse File on Computer</span>
-                </>
-              )}
-            </button>
+              Browse File on Computer
+            </Button>
           </div>
         ) : (
           /* Step 2: Data Preview & Validation Inspection */
@@ -397,36 +391,27 @@ export function BulkMedicineExcelModal({ isOpen, onClose, onSuccess }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => {
                 handleReset();
                 onClose();
               }}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
             >
               Cancel
-            </button>
+            </Button>
 
             {validatedRows.length > 0 && (
-              <button
-                type="button"
+              <Button
+                variant="primary"
                 onClick={handleExecuteImport}
-                disabled={isImporting || validCount + warningCount === 0}
-                className="inline-flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20 transition-all"
+                disabled={validCount + warningCount === 0}
+                loading={isImporting}
+                loadingText="Importing into Pharmacy…"
+                icon={CheckCircle2}
               >
-                {isImporting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Importing into Pharmacy…</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Confirm & Import ({validCount + warningCount} Items)</span>
-                  </>
-                )}
-              </button>
+                Confirm & Import ({validCount + warningCount} Items)
+              </Button>
             )}
           </div>
         </div>

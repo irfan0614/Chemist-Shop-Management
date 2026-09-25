@@ -1,226 +1,314 @@
 const express = require('express');
-const { memStore } = require('../db/pool');
+const { query, connect } = require('../db/pool');
 const { authMiddleware, requireRole, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 router.use(authMiddleware);
 
 // GET /api/purchases
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const shopId = tenantShopId(req);
   const { search, supplierId, startDate, endDate } = req.query;
-  let list = memStore.purchases.filter((p) => p.shop_id === shopId);
 
-  if (supplierId) {
-    list = list.filter((p) => p.supplier_id === supplierId);
+  try {
+    let sql = `
+      SELECT p.id, p.purchase_no as "purchaseNo", p.supplier_id as "supplierId",
+             p.supplier_invoice_no as "supplierInvoiceNo", p.supplier_invoice_date as "supplierInvoiceDate",
+             p.purchase_date as "purchaseDate", p.subtotal::float, p.discount_amount::float as "discountAmount",
+             p.gst_total::float as "gstTotal", p.total_amount::float as "totalAmount",
+             p.paid_amount::float as "paidAmount", p.payment_status as "paymentStatus",
+             p.payment_mode as "paymentMode", p.notes,
+             s.name as "supplierName", s.company_name as "supplierCompany", s.gstin as "supplierGstin",
+             (SELECT COUNT(*)::int FROM purchase_items pi WHERE pi.purchase_id = p.id) as "itemCount"
+      FROM purchases p
+      LEFT JOIN suppliers s ON p.supplier_id = s.id
+      WHERE ($1::uuid IS NULL OR p.shop_id = $1)
+    `;
+    const params = [shopId];
+
+    if (supplierId) {
+      params.push(supplierId);
+      sql += ` AND p.supplier_id = $${params.length}`;
+    }
+
+    if (startDate) {
+      params.push(startDate);
+      sql += ` AND p.purchase_date >= $${params.length}`;
+    }
+
+    if (endDate) {
+      params.push(endDate);
+      sql += ` AND p.purchase_date <= $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      sql += ` AND (
+        lower(p.purchase_no) LIKE $${params.length} OR
+        lower(s.name) LIKE $${params.length} OR
+        lower(s.company_name) LIKE $${params.length} OR
+        lower(p.supplier_invoice_no) LIKE $${params.length}
+      )`;
+    }
+
+    sql += ` ORDER BY p.purchase_date DESC, p.created_at DESC`;
+
+    const { rows } = await query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get purchases error:', err);
+    res.status(500).json({ error: 'Failed to retrieve purchases: ' + err.message });
   }
-
-  if (startDate) {
-    list = list.filter((p) => p.purchase_date >= startDate);
-  }
-
-  if (endDate) {
-    list = list.filter((p) => p.purchase_date <= endDate);
-  }
-
-  let enriched = list.map((p) => {
-    const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === p.supplier_id) || {};
-    return {
-      id: p.id,
-      purchaseNo: p.purchase_no,
-      supplierId: p.supplier_id,
-      supplierName: supplier.company_name || supplier.name || 'Unknown Supplier',
-      supplierGstin: supplier.gstin || '',
-      supplierInvoiceNo: p.supplier_invoice_no,
-      supplierInvoiceDate: p.supplier_invoice_date,
-      purchaseDate: p.purchase_date,
-      subtotal: Number(p.subtotal),
-      discountAmount: Number(p.discount_amount),
-      gstTotal: Number(p.gst_total),
-      totalAmount: Number(p.total_amount),
-      paidAmount: Number(p.paid_amount),
-      paymentStatus: p.payment_status,
-      paymentMode: p.payment_mode,
-      itemCount: p.items ? p.items.length : 0,
-      notes: p.notes,
-    };
-  });
-
-  if (search) {
-    const q = search.trim().toLowerCase();
-    enriched = enriched.filter(
-      (p) =>
-        p.purchaseNo.toLowerCase().includes(q) ||
-        p.supplierName.toLowerCase().includes(q) ||
-        p.supplierInvoiceNo.toLowerCase().includes(q)
-    );
-  }
-
-  enriched.sort((a, b) => (b.purchaseDate > a.purchaseDate ? 1 : -1));
-  res.json(enriched);
 });
 
 // GET /api/purchases/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const shopId = tenantShopId(req);
-  const p = memStore.purchases.find((pur) => pur.shop_id === shopId && pur.id === req.params.id);
-  if (!p) return res.status(404).json({ error: 'Purchase invoice not found' });
+  try {
+    const { rows: purRows } = await query(
+      `SELECT p.*, s.name as "supplierName", s.company_name as "supplierCompany",
+              s.gstin as "supplierGstin", s.phone as "supplierPhone"
+       FROM purchases p
+       LEFT JOIN suppliers s ON p.supplier_id = s.id
+       WHERE p.id = $1 AND ($2::uuid IS NULL OR p.shop_id = $2)`,
+      [req.params.id, shopId]
+    );
 
-  const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === p.supplier_id) || {};
-  res.json({
-    ...p,
-    supplier,
-  });
+    if (purRows.length === 0) return res.status(404).json({ error: 'Purchase invoice not found' });
+
+    const { rows: items } = await query(
+      `SELECT pi.id, pi.medicine_id as "medicineId", m.name as "medicineName",
+              pi.batch_no as "batchNo", pi.mfg_date as "mfgDate", pi.expiry_date as "expiryDate",
+              pi.pack_size as "packSize", pi.qty, pi.free_qty as "freeQty",
+              pi.purchase_cost::float as "purchaseRate", pi.mrp::float,
+              pi.selling_price::float as "sellingPrice", pi.gst_rate::float as "gstRate",
+              pi.discount_percent::float as "discountPercent", pi.total_amount::float as "totalAmount"
+       FROM purchase_items pi
+       JOIN medicines m ON pi.medicine_id = m.id
+       WHERE pi.purchase_id = $1
+       ORDER BY pi.id ASC`,
+      [req.params.id]
+    );
+
+    res.json({
+      ...purRows[0],
+      items,
+    });
+  } catch (err) {
+    console.error('Get purchase detail error:', err);
+    res.status(500).json({ error: 'Failed to retrieve purchase details: ' + err.message });
+  }
 });
 
-// POST /api/purchases - Create Purchase Invoice + Update/Create Batches + Update Supplier Balance
-router.post('/', authMiddleware, requireRole(['SHOP_OWNER', 'ADMIN']), (req, res) => {
+// POST /api/purchases - Inward Purchase Transaction
+router.post('/', requireRole(['SHOP_OWNER', 'ADMIN']), async (req, res) => {
   const shopId = tenantShopId(req);
   const {
     supplierId,
     supplierInvoiceNo,
     supplierInvoiceDate,
-    purchaseDate,
+    purchaseDate = new Date().toISOString().slice(0, 10),
     items,
     discountAmount = 0,
     paidAmount = 0,
     paymentMode = 'NEFT/RTGS',
-    notes,
+    notes = '',
   } = req.body;
 
   if (!supplierId || !supplierInvoiceNo || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Supplier, invoice number, and at least one item are required' });
   }
 
-  const supplier = memStore.suppliers.find((s) => s.shop_id === shopId && s.id === supplierId);
-  if (!supplier) return res.status(400).json({ error: 'Invalid supplier selected' });
+  const client = await connect();
+  try {
+    await client.query('BEGIN');
 
-  // Generate Purchase No
-  memStore.settings.purchase_counter = (memStore.settings.purchase_counter || 100) + 1;
-  const purchaseNo = `${memStore.settings.purchase_prefix || 'PUR'}-${String(memStore.settings.purchase_counter).padStart(4, '0')}`;
-
-  let subtotal = 0;
-  let gstTotal = 0;
-  const purchaseItems = [];
-
-  for (const it of items) {
-    const med = memStore.medicines.find((m) => m.shop_id === shopId && m.id === it.medicineId);
-    if (!med) throw new Error(`Medicine ${it.medicineId} not found`);
-
-    const qty = parseInt(it.qty) || 0;
-    const freeQty = parseInt(it.freeQty) || 0;
-    const totalQty = qty + freeQty;
-    const cost = parseFloat(it.purchaseCost) || 0;
-    const mrp = parseFloat(it.mrp) || cost * 1.2;
-    const sellingPrice = parseFloat(it.sellingPrice) || mrp * 0.95;
-    const itemDiscPct = parseFloat(it.discountPercent) || 0;
-    const gstRate = parseFloat(it.gstRate) !== undefined ? parseFloat(it.gstRate) : Number(med.gst_rate || 12);
-
-    const lineCost = qty * cost;
-    const lineDisc = lineCost * (itemDiscPct / 100);
-    const taxableAmt = lineCost - lineDisc;
-    const lineGst = taxableAmt * (gstRate / 100);
-    const lineTotal = taxableAmt + lineGst;
-
-    subtotal += taxableAmt;
-    gstTotal += lineGst;
-
-    // Check if batch already exists or create new
-    let batch = memStore.batches.find(
-      (b) => b.shop_id === shopId && b.medicine_id === med.id && b.batch_no.toLowerCase() === (it.batchNo || '').trim().toLowerCase()
+    // 1. Validate Supplier
+    const { rows: supRows } = await client.query(
+      `SELECT * FROM suppliers WHERE id = $1 AND ($2::uuid IS NULL OR shop_id = $2)`,
+      [supplierId, shopId]
     );
-
-    if (batch) {
-      batch.current_stock += totalQty;
-      batch.purchase_cost = cost;
-      batch.mrp = mrp;
-      batch.selling_price = sellingPrice;
-      batch.expiry_date = it.expiryDate || batch.expiry_date;
-    } else {
-      batch = {
-        id: `b-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        shop_id: shopId,
-        medicine_id: med.id,
-        batch_no: (it.batchNo || `B-${Date.now()}`).trim(),
-        mfg_date: it.mfgDate || null,
-        expiry_date: it.expiryDate || '2028-12-31',
-        purchase_cost: cost,
-        mrp,
-        selling_price: sellingPrice,
-        current_stock: totalQty,
-        rack_shelf: (it.rackShelf || '').trim(),
-        is_blocked: false,
-      };
-      memStore.batches.push(batch);
+    if (supRows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Invalid supplier selected' });
     }
 
-    purchaseItems.push({
-      id: `pi-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      shop_id: shopId,
-      medicineId: med.id,
-      medicineName: med.name,
-      batchId: batch.id,
-      batchNo: batch.batch_no,
-      expiryDate: batch.expiry_date,
-      packSize: med.pack_size,
-      qty,
-      freeQty,
-      purchaseCost: cost,
-      mrp,
-      sellingPrice,
-      discountPercent: itemDiscPct,
-      gstRate,
-      gstAmount: lineGst,
-      totalAmount: lineTotal,
+    // 2. Generate Purchase Number using shop counter
+    let purchaseCounter = 101;
+    let purchasePrefix = 'PUR';
+    if (shopId) {
+      const { rows: shopRows } = await client.query(
+        `UPDATE shops SET purchase_counter = COALESCE(purchase_counter, 100) + 1 WHERE id = $1 RETURNING purchase_counter, purchase_prefix`,
+        [shopId]
+      );
+      if (shopRows.length > 0) {
+        purchaseCounter = shopRows[0].purchase_counter;
+        purchasePrefix = shopRows[0].purchase_prefix || 'PUR';
+      }
+    }
+    const purchaseNo = `${purchasePrefix}-${String(purchaseCounter).padStart(4, '0')}`;
+
+    // 3. Compute Item Totals
+    let subtotal = 0;
+    let gstTotal = 0;
+
+    items.forEach((item) => {
+      const qty = parseInt(item.qty) || 1;
+      const rate = parseFloat(item.purchaseRate) || 0;
+      const gstRate = parseFloat(item.gstRate) || 12;
+      const disc = parseFloat(item.discountPercent) || 0;
+
+      const gross = qty * rate;
+      const discAmt = gross * (disc / 100);
+      const taxable = gross - discAmt;
+      const gstAmt = taxable * (gstRate / 100);
+
+      subtotal += taxable;
+      gstTotal += gstAmt;
     });
+
+    const discTotal = parseFloat(discountAmount) || 0;
+    const totalAmount = Math.max(0, subtotal + gstTotal - discTotal);
+    const numPaid = parseFloat(paidAmount) || 0;
+    const paymentStatus = numPaid >= totalAmount ? 'PAID' : numPaid > 0 ? 'PARTIAL' : 'PENDING';
+
+    // 4. Insert Purchase Header
+    const { rows: purInsert } = await client.query(
+      `INSERT INTO purchases (
+        shop_id, purchase_no, supplier_id, supplier_invoice_no, supplier_invoice_date,
+        purchase_date, subtotal, discount_amount, gst_total, total_amount,
+        paid_amount, payment_status, payment_mode, notes
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+      ) RETURNING *`,
+      [
+        shopId,
+        purchaseNo,
+        supplierId,
+        supplierInvoiceNo.trim(),
+        supplierInvoiceDate || purchaseDate,
+        purchaseDate,
+        subtotal,
+        discTotal,
+        gstTotal,
+        totalAmount,
+        numPaid,
+        paymentStatus,
+        paymentMode,
+        notes,
+      ]
+    );
+
+    const purchase = purInsert[0];
+
+    // 5. Insert Purchase Items & Upsert Batches
+    for (const item of items) {
+      const qty = parseInt(item.qty) || 1;
+      const freeQty = parseInt(item.freeQty) || 0;
+      const totalUnits = qty + freeQty;
+      const rate = parseFloat(item.purchaseRate) || 0;
+      const mrp = parseFloat(item.mrp) || rate * 1.25;
+      const sellingPrice = parseFloat(item.sellingPrice) || mrp;
+      const gstRate = parseFloat(item.gstRate) || 12;
+      const disc = parseFloat(item.discountPercent) || 0;
+      const lineTaxable = qty * rate * (1 - disc / 100);
+      const lineGst = lineTaxable * (gstRate / 100);
+      const lineTotal = lineTaxable + lineGst;
+
+      // Insert item
+      await client.query(
+        `INSERT INTO purchase_items (
+          shop_id, purchase_id, medicine_id, batch_no,
+          mfg_date, expiry_date, pack_size, qty, free_qty, purchase_cost,
+          mrp, selling_price, gst_rate, discount_percent, gst_amount, total_amount
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+        )`,
+        [
+          shopId,
+          purchase.id,
+          item.medicineId,
+          item.batchNo.trim(),
+          item.mfgDate || null,
+          item.expiryDate,
+          parseInt(item.packSize) || 10,
+          qty,
+          freeQty,
+          rate,
+          mrp,
+          sellingPrice,
+          gstRate,
+          disc,
+          lineGst,
+          lineTotal,
+        ]
+      );
+
+      // Upsert Medicine Batch
+      const { rows: batchUpsert } = await client.query(
+        `INSERT INTO medicine_batches (
+          shop_id, medicine_id, batch_no, mfg_date, expiry_date,
+          purchase_cost, mrp, selling_price, current_stock, rack_shelf, is_blocked
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false)
+        ON CONFLICT (medicine_id, batch_no) DO UPDATE SET
+          current_stock = medicine_batches.current_stock + EXCLUDED.current_stock,
+          purchase_cost = EXCLUDED.purchase_cost,
+          mrp = EXCLUDED.mrp,
+          selling_price = EXCLUDED.selling_price,
+          expiry_date = EXCLUDED.expiry_date,
+          updated_at = now()
+        RETURNING id`,
+        [
+          shopId,
+          item.medicineId,
+          item.batchNo.trim(),
+          item.mfgDate || null,
+          item.expiryDate,
+          rate,
+          mrp,
+          sellingPrice,
+          totalUnits,
+          item.rackShelf || '',
+        ]
+      );
+
+      // Record Stock Movement
+      if (batchUpsert.length > 0) {
+        await client.query(
+          `INSERT INTO stock_movements (
+            shop_id, medicine_id, batch_id, movement_type, quantity,
+            reference_no, notes
+          ) VALUES ($1, $2, $3, 'PURCHASE_INWARD', $4, $5, $6)`,
+          [
+            shopId,
+            item.medicineId,
+            batchUpsert[0].id,
+            totalUnits,
+            purchaseNo,
+            `Inward purchase from invoice #${supplierInvoiceNo}`,
+          ]
+        ).catch(() => {});
+      }
+    }
+
+    // 6. Update Supplier Balance
+    const unpaidAmount = Math.max(0, totalAmount - numPaid);
+    if (unpaidAmount > 0) {
+      await client.query(
+        `UPDATE suppliers SET current_balance = COALESCE(current_balance, 0) + $1, updated_at = now() WHERE id = $2`,
+        [unpaidAmount, supplierId]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json(purchase);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Create purchase error:', err);
+    res.status(500).json({ error: 'Failed to record purchase invoice: ' + err.message });
+  } finally {
+    client.release();
   }
-
-  const discAmt = parseFloat(discountAmount) || 0;
-  const grandTotal = Math.max(0, subtotal + gstTotal - discAmt);
-  const paid = parseFloat(paidAmount) || 0;
-  const paymentStatus = paid >= grandTotal ? 'PAID' : paid > 0 ? 'PARTIAL' : 'UNPAID';
-
-  const newPurchase = {
-    id: `pur-${Date.now()}`,
-    shop_id: shopId,
-    purchase_no: purchaseNo,
-    supplier_id: supplier.id,
-    supplier_invoice_no: supplierInvoiceNo.trim(),
-    supplier_invoice_date: supplierInvoiceDate || new Date().toISOString().slice(0, 10),
-    purchase_date: purchaseDate || new Date().toISOString().slice(0, 10),
-    subtotal,
-    discount_amount: discAmt,
-    gst_total: gstTotal,
-    round_off: 0.0,
-    total_amount: grandTotal,
-    paid_amount: paid,
-    payment_status: paymentStatus,
-    payment_mode: paymentMode,
-    notes: notes || '',
-    created_at: new Date().toISOString(),
-    items: purchaseItems,
-  };
-
-  memStore.purchases.unshift(newPurchase);
-
-  // Update supplier outstanding ledger balance
-  const remainingDue = grandTotal - paid;
-  supplier.current_balance = (Number(supplier.current_balance) || 0) + remainingDue;
-
-  // Log audit
-  memStore.audit_logs.unshift({
-    id: `al-${Date.now()}`,
-    shop_id: shopId,
-    user_id: req.user?.id,
-    user_name: req.user?.name,
-    action: 'CREATE_PURCHASE',
-    entity_type: 'PURCHASE',
-    entity_id: newPurchase.id,
-    new_values: { purchase_no: purchaseNo, total: grandTotal, supplier: supplier.name },
-    created_at: new Date().toISOString(),
-  });
-
-  res.status(201).json(newPurchase);
 });
 
 module.exports = router;

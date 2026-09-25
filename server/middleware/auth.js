@@ -10,7 +10,7 @@ function generateToken(user) {
       email: user.email,
       name: user.full_name || user.name,
       role: user.role,
-      shop_id: isSuperAdmin ? null : (user.shop_id || '11111111-1111-1111-1111-111111111111'),
+      shop_id: isSuperAdmin ? null : (user.shop_id || null),
       is_super_admin: isSuperAdmin,
     },
     JWT_SECRET,
@@ -25,15 +25,7 @@ function verifyToken(token) {
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // If no token provided in dev fallback
-    req.user = {
-      id: '00000000-0000-0000-0000-000000000001',
-      name: 'Dr. Rajesh Sharma (Apollo Owner)',
-      role: 'SHOP_OWNER',
-      shop_id: '11111111-1111-1111-1111-111111111111',
-      is_super_admin: false,
-    };
-    return next();
+    return res.status(401).json({ error: 'Authentication token is required' });
   }
 
   const token = authHeader.split(' ')[1];
@@ -52,13 +44,13 @@ function authMiddleware(req, res, next) {
  * For SUPER_ADMIN, allows specifying a target shop via header or query for support view.
  */
 function tenantShopId(req) {
-  if (!req.user) return '11111111-1111-1111-1111-111111111111';
+  if (!req.user) return null;
   if (req.user.is_super_admin || req.user.role === 'SUPER_ADMIN') {
     const target = req.headers['x-target-shop-id'] || req.query?.target_shop_id;
     if (target) return target;
     return null; // Null means all shops for super admin global queries
   }
-  return req.user.shop_id || '11111111-1111-1111-1111-111111111111';
+  return req.user.shop_id || null;
 }
 
 function requireRole(allowedRoles = ['SHOP_OWNER', 'SUPER_ADMIN']) {

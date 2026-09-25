@@ -34,14 +34,24 @@ function MainLayout() {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   useEffect(() => {
-    if (isSuperAdmin && currentView === 'dashboard') {
-      setView('platform');
+    if (isSuperAdmin) {
+      if (currentView === 'dashboard') {
+        setView('platform');
+      }
+    } else {
+      if (currentView === 'platform') {
+        setView('dashboard');
+      }
     }
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, user?.id]);
 
-  // Handle route change with auto-closing mobile drawer
+  // Handle route change with auto-closing mobile drawer and RBAC protection
   const handleSetView = (view) => {
-    setView(view);
+    if (view === 'platform' && !isSuperAdmin) {
+      setView('dashboard');
+    } else {
+      setView(view);
+    }
     setMobileDrawerOpen(false);
   };
 
@@ -84,8 +94,10 @@ function MainLayout() {
 
           {/* Scrollable View Container */}
           <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6">
-            {currentView === 'platform' && <PlatformAdminPage />}
-            {currentView === 'dashboard' && <DashboardPage setView={handleSetView} />}
+            {currentView === 'platform' && isSuperAdmin && <PlatformAdminPage />}
+            {(currentView === 'dashboard' || (currentView === 'platform' && !isSuperAdmin)) && (
+              <DashboardPage setView={handleSetView} />
+            )}
             {currentView === 'pos' && <POSBillingPage />}
             {currentView === 'medicines' && <MedicinesPage />}
             {currentView === 'batches' && <BatchesPage />}

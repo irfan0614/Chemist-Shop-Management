@@ -27,25 +27,29 @@ export function ThermalReceipt({ invoice, settings, preview = false }) {
       {/* Header */}
       <div className="text-center pb-1.5 border-b border-dashed border-black">
         <div className="font-bold text-xs uppercase tracking-tight break-words">
-          {currentSettings.shop_name || 'Apollo Health Chemist & Druggist'}
+          {currentSettings.shop_name || 'Medical Store'}
         </div>
         {currentSettings.tagline && (
           <div className="text-[8.5px] uppercase tracking-wider text-black mt-0.5">
             {currentSettings.tagline}
           </div>
         )}
-        <div className="text-[9px] mt-0.5 leading-snug">
-          {currentSettings.address || 'Central Market'}
-        </div>
-        <div className="text-[9px]">
-          {currentSettings.city || 'New Delhi'}, {currentSettings.state || 'Delhi'} - {currentSettings.pincode || '110001'}
-        </div>
+        {currentSettings.address && (
+          <div className="text-[9px] mt-0.5 leading-snug">
+            {currentSettings.address}
+          </div>
+        )}
+        {(currentSettings.city || currentSettings.state || currentSettings.pincode) && (
+          <div className="text-[9px]">
+            {[currentSettings.city, currentSettings.state, currentSettings.pincode].filter(Boolean).join(', ')}
+          </div>
+        )}
         {currentSettings.phone && (
           <div className="text-[9px]">Ph: {currentSettings.phone}</div>
         )}
-        {currentSettings.dl_number_20b && (
+        {(currentSettings.dl_number_20b || currentSettings.dl_number_21b) && (
           <div className="text-[8.5px]">
-            DL No: {currentSettings.dl_number_20b}, {currentSettings.dl_number_21b}
+            DL No: {[currentSettings.dl_number_20b, currentSettings.dl_number_21b].filter(Boolean).join(', ')}
           </div>
         )}
         {currentSettings.gstin && (

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Printer, FileText, Receipt, Check, Copy } from 'lucide-react';
 import { Modal } from '../common/Modal';
+import { Button } from '../common/Button';
 import { ThermalReceipt } from './ThermalReceipt';
 import { A4TaxInvoice } from './A4TaxInvoice';
 import { useShop } from '../../context/ShopContext';
@@ -70,13 +71,14 @@ export function InvoicePreviewModal({ isOpen, onClose, invoice }) {
             </button>
           </div>
 
-          <button
+          <Button
             onClick={handlePrint}
-            className="w-full sm:w-auto justify-center px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-950/20 flex items-center gap-2 transition-all shrink-0"
+            variant="gradient"
+            icon={Printer}
+            className="w-full sm:w-auto shrink-0"
           >
-            <Printer className="w-4 h-4" />
-            <span>Print {selectedFormat} Invoice</span>
-          </button>
+            Print {selectedFormat} Invoice
+          </Button>
         </div>
 
         {/* Live Formatted Paper View Canvas */}

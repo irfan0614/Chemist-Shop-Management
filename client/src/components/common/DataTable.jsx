@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Search, ChevronDown, ChevronUp, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from './Button';
 
 export function DataTable({
   columns,
@@ -98,13 +99,14 @@ export function DataTable({
           />
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Download}
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-sm transition-colors"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Export CSV</span>
-          </button>
+            Export CSV
+          </Button>
           {actions}
         </div>
       </div>
@@ -165,23 +167,25 @@ export function DataTable({
             <span className="font-semibold text-slate-800">{sortedData.length}</span> entries
           </div>
           <div className="flex items-center gap-1">
-            <button
+            <Button
+              size="icon-sm"
+              variant="outline"
               disabled={page === 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none text-slate-600"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+              icon={ChevronLeft}
+              title="Previous Page"
+            />
             <span className="px-3 font-semibold text-slate-700">
               {page} / {totalPages}
             </span>
-            <button
+            <Button
+              size="icon-sm"
+              variant="outline"
               disabled={page === totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none text-slate-600"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+              icon={ChevronRight}
+              title="Next Page"
+            />
           </div>
         </div>
       </div>

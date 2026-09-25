@@ -47,94 +47,43 @@ CREATE TABLE IF NOT EXISTS shops (
 CREATE INDEX IF NOT EXISTS idx_shops_status ON shops (status);
 CREATE INDEX IF NOT EXISTS idx_shops_email ON shops (lower(email));
 
--- 2. Seed Default Primary Shop if none exists (Preserves existing data)
-INSERT INTO shops (
-  id,
-  shop_name,
-  slug,
-  owner_name,
-  email,
-  phone,
-  address,
-  city,
-  state,
-  pincode,
-  gstin,
-  dl_number_20b,
-  dl_number_21b
-)
-VALUES (
-  '11111111-1111-1111-1111-111111111111',
-  'Apollo Health Chemist & Druggist',
-  'apollo-health-chemist',
-  'Dr. Rajesh Sharma',
-  'owner@apollochemist.in',
-  '+91 98765 43210',
-  'Shop No. 12, Ground Floor, Central Market',
-  'New Delhi',
-  'Delhi',
-  '110001',
-  '07AAAAA0000A1Z5',
-  'DL-20B-129482',
-  'DL-21B-129483'
-)
-ON CONFLICT (slug) DO NOTHING;
-
--- 3. Update USERS Table for Multi-Tenancy & Platform Admin
+-- 2. Update USERS Table for Multi-Tenancy & Platform Admin
 ALTER TABLE users ADD COLUMN IF NOT EXISTS shop_id UUID REFERENCES shops(id) ON DELETE CASCADE;
 
--- Update role check constraint strictly to SUPER_ADMIN and SHOP_OWNER
+-- Update role check constraint safely
 DO $$
 BEGIN
   ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
   ALTER TABLE users ADD CONSTRAINT users_role_check 
-    CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER'));
+    CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER', 'ADMIN', 'PHARMACIST', 'CASHIER', 'STAFF'));
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
--- Seed Platform Super Admin User (password: superadmin123)
-INSERT INTO users (id, full_name, email, password_hash, role, phone, is_active, shop_id)
-VALUES (
-  '00000000-0000-0000-0000-000000000000',
-  'Platform Super Admin',
-  'superadmin@platform.com',
-  '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-  'SUPER_ADMIN',
-  '+91 99999 00000',
-  true,
-  NULL
-)
-ON CONFLICT (email) DO UPDATE SET role = 'SUPER_ADMIN';
-
--- Link existing default users to Primary Shop
-UPDATE users SET shop_id = '11111111-1111-1111-1111-111111111111' WHERE shop_id IS NULL AND role != 'SUPER_ADMIN';
-
--- 4. Safely Add shop_id to all Business Tables
+-- 3. Safely Add shop_id to all Business Tables
 DO $$
 DECLARE
   tbl TEXT;
   tables TEXT[] := ARRAY[
-    'categories', 'medicines', 'batches', 'suppliers', 'purchases', 
-    'purchase_items', 'customers', 'prescriptions', 'invoices', 
-    'invoice_items', 'sales_returns', 'sales_return_items', 
+    'categories', 'medicines', 'medicine_batches', 'suppliers', 'purchases', 
+    'purchase_items', 'customers', 'prescriptions', 'sales_invoices', 
+    'sales_invoice_items', 'sales_returns', 'sales_return_items', 
     'purchase_returns', 'purchase_return_items', 'expense_categories', 
-    'expenses', 'cash_registers', 'audit_logs', 'stock_ledger'
+    'expenses', 'cash_registers', 'audit_logs', 'stock_movements'
   ];
 BEGIN
   FOREACH tbl IN ARRAY tables LOOP
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
-      EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS shop_id UUID REFERENCES shops(id) ON DELETE CASCADE DEFAULT %L', tbl, '11111111-1111-1111-1111-111111111111');
-      EXECUTE format('UPDATE %I SET shop_id = %L WHERE shop_id IS NULL', tbl, '11111111-1111-1111-1111-111111111111');
+      EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS shop_id UUID REFERENCES shops(id) ON DELETE CASCADE', tbl);
       EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I (shop_id)', 'idx_' || tbl || '_shop_id', tbl);
     END IF;
   END LOOP;
 END $$;
 
--- 5. Compound Unique Constraints per Tenant
+-- 4. Compound Unique Constraints per Tenant
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'invoices') THEN
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_shop_no ON invoices (shop_id, invoice_no);
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sales_invoices') THEN
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_shop_no ON sales_invoices (shop_id, invoice_no);
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'purchases') THEN
     CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_shop_no ON purchases (shop_id, purchase_no);

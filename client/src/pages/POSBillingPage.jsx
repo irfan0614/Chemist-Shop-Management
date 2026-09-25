@@ -25,6 +25,7 @@ import { useToast } from '../context/ToastContext';
 import { useShop } from '../context/ShopContext';
 import { Modal } from '../components/common/Modal';
 import { Badge, DrugScheduleBadge } from '../components/common/Badge';
+import { Button } from '../components/common/Button';
 import { fmtMoney, fmtDate, expiryStatus } from '../utils/formatters';
 
 export function POSBillingPage() {
@@ -424,27 +425,31 @@ export function POSBillingPage() {
               <span>{heldBills.length} Held:</span>
               <div className="flex gap-1 overflow-x-auto max-w-[150px]">
                 {heldBills.map((h) => (
-                  <button
+                  <Button
                     key={h.id}
+                    size="xs"
+                    variant="warning"
                     onClick={() => handleResumeBill(h.id)}
-                    className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-bold shrink-0"
+                    className="shrink-0"
                   >
                     Resume {h.customerName || 'Walk-in'}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
           )}
 
-          <button
+          <Button
             onClick={handleHoldBill}
             disabled={cart.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold disabled:opacity-40 transition-colors shrink-0"
+            variant="secondary"
+            size="sm"
+            icon={PauseCircle}
+            className="shrink-0"
             title="Park Bill (F8)"
           >
-            <PauseCircle className="w-4 h-4 text-slate-500" />
-            <span>Hold Bill (F8)</span>
-          </button>
+            Hold Bill (F8)
+          </Button>
         </div>
       </div>
 
@@ -762,14 +767,15 @@ export function POSBillingPage() {
             </div>
 
             {/* Complete Sale Button */}
-            <button
+            <Button
               disabled={cart.length === 0 || processing}
               onClick={() => setIsPaymentModalOpen(true)}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-emerald-700/20 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center justify-center gap-2"
+              variant="gradient"
+              className="w-full py-3 uppercase tracking-wider"
+              icon={CreditCard}
             >
-              <CreditCard className="w-4 h-4" />
-              <span>Collect Payment & Print (F10)</span>
-            </button>
+              Collect Payment & Print (F10)
+            </Button>
           </div>
         </div>
       </div>
@@ -801,14 +807,15 @@ export function POSBillingPage() {
                 + Add More
               </button>
             )}
-            <button
+            <Button
               disabled={processing}
               onClick={() => setIsPaymentModalOpen(true)}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-950/50 flex items-center gap-1.5"
+              variant="gradient"
+              icon={CreditCard}
+              size="sm"
             >
-              <CreditCard className="w-4 h-4" />
-              <span>Checkout</span>
-            </button>
+              Checkout
+            </Button>
           </div>
         </div>
       )}
@@ -928,20 +935,23 @@ export function POSBillingPage() {
 
           {/* Confirm & Print Buttons */}
           <div className="pt-3 border-t border-slate-200 flex gap-2">
-            <button
-              disabled={processing}
+            <Button
               onClick={handleCompleteSale}
-              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-950/10"
+              loading={processing}
+              loadingText="Processing & Generating…"
+              variant="primary"
+              icon={Printer}
+              className="flex-1 py-2.5"
             >
-              <Printer className="w-4 h-4" />
-              <span>{processing ? 'Processing…' : 'Generate & Print Receipt'}</span>
-            </button>
-            <button
+              Generate & Print Receipt
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setIsPaymentModalOpen(false)}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold"
+              className="px-4 py-2.5"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -983,21 +993,23 @@ export function POSBillingPage() {
             )}
 
             <div className="flex gap-2 pt-2 border-t border-slate-100">
-              <button
+              <Button
                 onClick={() => {
                   triggerPrint(completedInvoice);
                 }}
-                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 text-xs"
+                variant="dark"
+                icon={Printer}
+                className="flex-1 py-2.5"
               >
-                <Printer className="w-4 h-4" />
-                <span>Re-print Invoice</span>
-              </button>
-              <button
+                Re-print Invoice
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => setCompletedInvoice(null)}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs"
+                className="px-5 py-2.5"
               >
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>

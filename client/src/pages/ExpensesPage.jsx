@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
+import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { fmtMoney, fmtDate } from '../utils/formatters';
 
@@ -139,15 +140,16 @@ export function ExpensesPage() {
           </div>
 
           {cashRegister?.status === 'OPEN' ? (
-            <button
+            <Button
               onClick={() => {
                 setCountedCash(cashRegister?.expected_cash?.toString() || '');
                 setIsCloseDrawerModalOpen(true);
               }}
-              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow-md transition-all shrink-0"
+              variant="primary"
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shrink-0"
             >
               Close Cash Drawer (Day End)
-            </button>
+            </Button>
           ) : (
             <div className="text-right font-mono text-xs">
               <div className="text-emerald-400 font-bold">Closed at {new Date(cashRegister?.closed_at).toLocaleTimeString()}</div>
@@ -162,13 +164,14 @@ export function ExpensesPage() {
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Store Operations</h3>
             <p className="text-xs text-slate-400 mt-1">Record rent, utility, logistics, and pantry vouchers</p>
           </div>
-          <button
+          <Button
             onClick={() => setIsAddModalOpen(true)}
-            className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-colors"
+            variant="dark"
+            className="w-full"
+            icon={Plus}
           >
-            <Plus className="w-4 h-4" />
-            <span>Record New Expense</span>
-          </button>
+            Record New Expense
+          </Button>
         </div>
       </div>
 
@@ -269,18 +272,18 @@ export function ExpensesPage() {
           </div>
 
           <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setIsAddModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleSaveExpense}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20"
             >
               Save Expense Voucher
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -322,18 +325,18 @@ export function ExpensesPage() {
           </div>
 
           <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setIsCloseDrawerModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="dark"
               onClick={handleCloseDrawer}
-              className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs"
             >
               Confirm Day End Close
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

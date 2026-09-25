@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
+import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { fmtMoney, fmtDate } from '../utils/formatters';
 
@@ -199,13 +200,14 @@ export function ReturnsPage() {
             </button>
           </div>
 
-          <button
+          <Button
+            variant="primary"
+            size="sm"
+            icon={RotateCcw}
             onClick={() => setIsSalesReturnModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
           >
-            <RotateCcw className="w-4 h-4" />
-            <span>Process Patient Return</span>
-          </button>
+            Process Patient Return
+          </Button>
         </div>
       </div>
 
@@ -246,12 +248,13 @@ export function ReturnsPage() {
               value={invoiceSearch}
               onChange={(e) => setInvoiceSearch(e.target.value)}
             />
-            <button
+            <Button
+              variant="primary"
               onClick={handleLookupInvoice}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs"
+              icon={Search}
             >
               Lookup Invoice
-            </button>
+            </Button>
           </div>
 
           {/* Invoice Items & Return Selection */}
@@ -330,18 +333,18 @@ export function ReturnsPage() {
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => setIsSalesReturnModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
                   onClick={handleProcessSalesReturn}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20"
                 >
                   Confirm Restock & Refund
-                </button>
+                </Button>
               </div>
             </div>
           )}

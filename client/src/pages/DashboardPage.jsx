@@ -57,6 +57,8 @@ export function DashboardPage({ setView }) {
     <div className="space-y-6">
       {/* Compliance Alert Banner (Drug License & Subscription Expiry) */}
       {d.shop && (() => {
+        if (!d.shop) return null;
+
         const getDays = (dateStr) => {
           if (!dateStr) return null;
           const today = new Date();

@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS users (
   full_name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'SHOP_OWNER' CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER')),
+  role TEXT NOT NULL DEFAULT 'SHOP_OWNER' CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER', 'ADMIN', 'PHARMACIST', 'CASHIER', 'STAFF')),
   phone TEXT DEFAULT '',
   is_active BOOLEAN NOT NULL DEFAULT true,
   last_login_at TIMESTAMPTZ,
@@ -66,45 +66,14 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (lower(email));
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
 
--- Seed default shop owner user (password: admin123)
--- bcrypt hash for 'admin123'
-INSERT INTO users (id, full_name, email, password_hash, role, phone, is_active)
-VALUES (
-  '00000000-0000-0000-0000-000000000001',
-  'Dr. Rajesh Sharma (Apollo Owner)',
-  'admin@chemist.com',
-  '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6', -- hashed 'admin123'
-  'SHOP_OWNER',
-  '+91 9876543210',
-  true
-)
-ON CONFLICT (email) DO UPDATE SET role = 'SHOP_OWNER';
-
--- Seed default pharmacist user (password: pharmacist123)
-INSERT INTO users (id, full_name, email, password_hash, role, phone, is_active)
-VALUES (
-  '00000000-0000-0000-0000-000000000002',
-  'Rohit Verma (Lead Pharmacist)',
-  'pharmacist@chemist.com',
-  '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-  'PHARMACIST',
-  '+91 9811223344',
-  true
-)
-ON CONFLICT (email) DO NOTHING;
-
--- Seed default cashier user (password: cashier123)
-INSERT INTO users (id, full_name, email, password_hash, role, phone, is_active)
-VALUES (
-  '00000000-0000-0000-0000-000000000003',
-  'Priya Patel (Billing Cashier)',
-  'cashier@chemist.com',
-  '$2a$10$wEeVg7d8Y5aU4bS6b7kC7.y9V6qJz3qV6z9Y7wEeVg7d8Y5aU4bS6',
-  'CASHIER',
-  '+91 9822334455',
-  true
-)
-ON CONFLICT (email) DO NOTHING;
+-- Ensure role check constraint is up-to-date
+DO $$
+BEGIN
+  ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+  ALTER TABLE users ADD CONSTRAINT users_role_check 
+    CHECK (role IN ('SUPER_ADMIN', 'SHOP_OWNER', 'ADMIN', 'PHARMACIST', 'CASHIER', 'STAFF'));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 -- 3. CATEGORIES TABLE
 CREATE TABLE IF NOT EXISTS categories (
@@ -223,15 +192,6 @@ CREATE TABLE IF NOT EXISTS suppliers (
 CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers (lower(name));
 CREATE INDEX IF NOT EXISTS idx_suppliers_company ON suppliers (lower(company_name));
 
--- Seed distributors
-INSERT INTO suppliers (name, company_name, contact_person, phone, email, gstin, dl_numbers, address, city, state, state_code)
-VALUES
-  ('MedPlus Pharma Distributors', 'MedPlus Healthcare Ltd', 'Sanjay Gupta', '+91 9811002233', 'orders@medplusdist.com', '07AACCM1234D1Z8', 'DL-20B-8812, DL-21B-8813', 'Plot 45, Okhla Industrial Area Ph-2', 'New Delhi', 'Delhi', '07'),
-  ('Sun Pharma Agency', 'Sun Lifesciences Agency', 'Amit Tyagi', '+91 9822114455', 'sales@suncare.in', '07AABCS5566K1Z2', 'DL-20B-9921, DL-21B-9922', 'Building 12, Bhagirath Palace, Chandni Chowk', 'Delhi', 'Delhi', '07'),
-  ('Cipla Generic Distributors', 'Cipla Care Logistics', 'Vikram Mehra', '+91 9833225566', 'delhi@cipladist.com', '07AABCC3344M1Z5', 'DL-20B-7744, DL-21B-7745', 'Unit 8, Daryaganj Medical Market', 'New Delhi', 'Delhi', '07'),
-  ('Mankind Health Stockists', 'Mankind Distributors Pvt Ltd', 'Rakesh Nair', '+91 9844336677', 'mankinddelhi@dist.com', '07AABCM7788P1Z9', 'DL-20B-6633, DL-21B-6634', 'Near AIIMS Metro, Gautam Nagar', 'New Delhi', 'Delhi', '07')
-ON CONFLICT DO NOTHING;
-
 -- 7. PURCHASES (INWARD INVOICES) TABLE
 CREATE TABLE IF NOT EXISTS purchases (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -303,14 +263,6 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers (lower(name));
-
--- Seed walk-in customer
-INSERT INTO customers (id, name, phone, address, credit_limit, current_balance, customer_type)
-VALUES
-  ('00000000-0000-0000-0000-000000000010', 'Walk-in Customer (Cash)', '9999999999', 'Counter Sale', 0.00, 0.00, 'RETAIL'),
-  ('00000000-0000-0000-0000-000000000011', 'Anil Kashyap', '9811223399', 'Flat 402, Green Park, New Delhi', 10000.00, 1250.00, 'REGULAR'),
-  ('00000000-0000-0000-0000-000000000012', 'Sunita Sundaram', '9822334411', 'B-14, Hauz Khas, New Delhi', 5000.00, 0.00, 'SENIOR_CITIZEN')
-ON CONFLICT DO NOTHING;
 
 -- 10. PRESCRIPTIONS & SCHEDULE H1 COMPLIANCE TABLE
 CREATE TABLE IF NOT EXISTS prescriptions (
@@ -583,190 +535,3 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs (user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs (action);
 
--- ==============================================================================
--- 23. SEED REALISTIC INDIAN MEDICINE CATALOG WITH BATCHES & STOCK
--- ==============================================================================
-
-DO $$
-DECLARE
-  cat_antibiotics UUID;
-  cat_pain UUID;
-  cat_cardio UUID;
-  cat_diabetes UUID;
-  cat_resp UUID;
-  cat_gi UUID;
-  cat_vitamins UUID;
-  
-  med_pcm UUID;
-  med_aug UUID;
-  med_azith UUID;
-  med_panto UUID;
-  med_telma UUID;
-  med_glyco UUID;
-  med_montel UUID;
-  med_becosules UUID;
-  med_d3 UUID;
-  med_alpra UUID;
-  
-BEGIN
-  SELECT id INTO cat_antibiotics FROM categories WHERE name LIKE 'Antibiotics%' LIMIT 1;
-  SELECT id INTO cat_pain FROM categories WHERE name LIKE 'Pain Relief%' LIMIT 1;
-  SELECT id INTO cat_cardio FROM categories WHERE name LIKE 'Cardiovascular%' LIMIT 1;
-  SELECT id INTO cat_diabetes FROM categories WHERE name LIKE 'Diabetes%' LIMIT 1;
-  SELECT id INTO cat_resp FROM categories WHERE name LIKE 'Respiratory%' LIMIT 1;
-  SELECT id INTO cat_gi FROM categories WHERE name LIKE 'Gastrointestinal%' LIMIT 1;
-  SELECT id INTO cat_vitamins FROM categories WHERE name LIKE 'Vitamins%' LIMIT 1;
-
-  -- 1. Paracetamol 650mg (Dolo 650)
-  SELECT id INTO med_pcm FROM medicines WHERE name = 'Dolo 650 Tablet' LIMIT 1;
-  IF med_pcm IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Dolo 650 Tablet', 'Paracetamol', 'Dolo', 'Micro Labs Ltd', cat_pain, 'Paracetamol 650mg', 'Tablet', '650mg', 15, 'Strips', '890123456701', '3004', 12.00, 'NONE', false, 30)
-    RETURNING id INTO med_pcm;
-  END IF;
-
-  IF med_pcm IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_pcm, 'DL2401', CURRENT_DATE - INTERVAL '3 months', CURRENT_DATE + INTERVAL '21 months', 22.50, 33.75, 31.00, 80, 'Rack A-1'),
-      (med_pcm, 'DL2309', CURRENT_DATE - INTERVAL '8 months', CURRENT_DATE + INTERVAL '4 months', 21.00, 31.50, 29.00, 25, 'Rack A-1')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 2. Augmentin 625 Duo (Amoxycillin + Clavulanic Acid) - Schedule H1
-  SELECT id INTO med_aug FROM medicines WHERE name = 'Augmentin 625 Duo Tablet' LIMIT 1;
-  IF med_aug IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Augmentin 625 Duo Tablet', 'Amoxycillin + Potassium Clavulanate', 'Augmentin', 'GlaxoSmithKline (GSK)', cat_antibiotics, 'Amoxycillin 500mg + Clavulanic Acid 125mg', 'Tablet', '625mg', 10, 'Strips', '890123456702', '3004', 12.00, 'H1', true, 20)
-    RETURNING id INTO med_aug;
-  END IF;
-
-  IF med_aug IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_aug, 'AG625-A', CURRENT_DATE - INTERVAL '2 months', CURRENT_DATE + INTERVAL '18 months', 145.00, 204.50, 195.00, 45, 'Rack B-3'),
-      (med_aug, 'AG625-B', CURRENT_DATE - INTERVAL '10 months', CURRENT_DATE + INTERVAL '45 days', 140.00, 198.00, 185.00, 12, 'Rack B-3')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 3. Azithral 500 (Azithromycin 500mg) - Schedule H1
-  SELECT id INTO med_azith FROM medicines WHERE name = 'Azithral 500 Tablet' LIMIT 1;
-  IF med_azith IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Azithral 500 Tablet', 'Azithromycin', 'Azithral', 'Alembic Pharmaceuticals', cat_antibiotics, 'Azithromycin 500mg', 'Tablet', '500mg', 5, 'Strips', '890123456703', '3004', 12.00, 'H1', true, 15)
-    RETURNING id INTO med_azith;
-  END IF;
-
-  IF med_azith IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_azith, 'AZ500-24', CURRENT_DATE - INTERVAL '4 months', CURRENT_DATE + INTERVAL '20 months', 85.00, 132.00, 125.00, 35, 'Rack B-4')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 4. Pantocid 40 (Pantoprazole)
-  SELECT id INTO med_panto FROM medicines WHERE name = 'Pantocid 40 Tablet' LIMIT 1;
-  IF med_panto IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Pantocid 40 Tablet', 'Pantoprazole Sodium', 'Pantocid', 'Sun Pharmaceutical Industries', cat_gi, 'Pantoprazole 40mg', 'Tablet', '40mg', 15, 'Strips', '890123456704', '3004', 12.00, 'H', true, 25)
-    RETURNING id INTO med_panto;
-  END IF;
-
-  IF med_panto IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_panto, 'PC40-99', CURRENT_DATE - INTERVAL '1 month', CURRENT_DATE + INTERVAL '23 months', 110.00, 175.00, 160.00, 60, 'Rack C-1')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 5. Telma 40 (Telmisartan)
-  SELECT id INTO med_telma FROM medicines WHERE name = 'Telma 40 Tablet' LIMIT 1;
-  IF med_telma IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Telma 40 Tablet', 'Telmisartan', 'Telma', 'Glenmark Pharmaceuticals', cat_cardio, 'Telmisartan 40mg', 'Tablet', '40mg', 15, 'Strips', '890123456705', '3004', 12.00, 'H', true, 20)
-    RETURNING id INTO med_telma;
-  END IF;
-
-  IF med_telma IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_telma, 'TL40-88', CURRENT_DATE - INTERVAL '3 months', CURRENT_DATE + INTERVAL '24 months', 155.00, 245.00, 225.00, 40, 'Rack C-5')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 6. Glycomet-GP 1 (Metformin + Glimepiride)
-  SELECT id INTO med_glyco FROM medicines WHERE name = 'Glycomet-GP 1 Tablet' LIMIT 1;
-  IF med_glyco IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Glycomet-GP 1 Tablet', 'Metformin + Glimepiride', 'Glycomet-GP', 'USV Private Limited', cat_diabetes, 'Metformin 500mg + Glimepiride 1mg', 'Tablet', '1mg/500mg', 15, 'Strips', '890123456706', '3004', 12.00, 'H', true, 25)
-    RETURNING id INTO med_glyco;
-  END IF;
-
-  IF med_glyco IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_glyco, 'GG1-77', CURRENT_DATE - INTERVAL '5 months', CURRENT_DATE + INTERVAL '19 months', 95.00, 148.00, 138.00, 50, 'Rack D-2')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 7. Montair-LC (Montelukast + Levocetirizine)
-  SELECT id INTO med_montel FROM medicines WHERE name = 'Montair-LC Tablet' LIMIT 1;
-  IF med_montel IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Montair-LC Tablet', 'Montelukast + Levocetirizine', 'Montair-LC', 'Cipla Ltd', cat_resp, 'Montelukast 10mg + Levocetirizine 5mg', 'Tablet', '10mg/5mg', 10, 'Strips', '890123456707', '3004', 12.00, 'H', true, 20)
-    RETURNING id INTO med_montel;
-  END IF;
-
-  IF med_montel IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_montel, 'MLC-44', CURRENT_DATE - INTERVAL '2 months', CURRENT_DATE + INTERVAL '22 months', 130.00, 210.00, 195.00, 55, 'Rack E-1')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 8. Becosules Z (B-Complex + Vitamin C + Zinc)
-  SELECT id INTO med_becosules FROM medicines WHERE name = 'Becosules Z Capsule' LIMIT 1;
-  IF med_becosules IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Becosules Z Capsule', 'Multivitamins with Zinc', 'Becosules', 'Pfizer Ltd', cat_vitamins, 'B-Complex + Vit C + Zinc Sulphate', 'Capsule', 'Standard', 20, 'Strips', '890123456708', '3004', 12.00, 'NONE', false, 30)
-    RETURNING id INTO med_becosules;
-  END IF;
-
-  IF med_becosules IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_becosules, 'BCZ-12', CURRENT_DATE - INTERVAL '6 months', CURRENT_DATE + INTERVAL '18 months', 38.00, 56.00, 52.00, 90, 'Rack F-3')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 9. Calcirol Sachet (Cholecalciferol / Vitamin D3 60,000 IU)
-  SELECT id INTO med_d3 FROM medicines WHERE name = 'Calcirol 60K Sachet' LIMIT 1;
-  IF med_d3 IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Calcirol 60K Sachet', 'Cholecalciferol (Vitamin D3)', 'Calcirol', 'Cadila Healthcare (Zydus)', cat_vitamins, 'Vitamin D3 60,000 IU Granules', 'Sachet', '60,000 IU', 1, 'Sachets', '890123456709', '3004', 12.00, 'NONE', false, 50)
-    RETURNING id INTO med_d3;
-  END IF;
-
-  IF med_d3 IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_d3, 'CR60-01', CURRENT_DATE - INTERVAL '3 months', CURRENT_DATE + INTERVAL '21 months', 28.00, 48.00, 44.00, 110, 'Rack F-4')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-  -- 10. Restyl 0.5 (Alprazolam) - Schedule H1
-  SELECT id INTO med_alpra FROM medicines WHERE name = 'Restyl 0.5 Tablet' LIMIT 1;
-  IF med_alpra IS NULL THEN
-    INSERT INTO medicines (name, generic_name, brand, manufacturer, category_id, salt_composition, dosage_form, strength, pack_size, unit, barcode, hsn_code, gst_rate, schedule_type, is_prescription_required, reorder_level)
-    VALUES ('Restyl 0.5 Tablet', 'Alprazolam', 'Restyl', 'Torrent Pharmaceuticals', cat_pain, 'Alprazolam 0.5mg', 'Tablet', '0.5mg', 15, 'Strips', '890123456710', '3004', 12.00, 'H1', true, 10)
-    RETURNING id INTO med_alpra;
-  END IF;
-
-  IF med_alpra IS NOT NULL THEN
-    INSERT INTO medicine_batches (medicine_id, batch_no, mfg_date, expiry_date, purchase_cost, mrp, selling_price, current_stock, rack_shelf)
-    VALUES
-      (med_alpra, 'RST-09', CURRENT_DATE - INTERVAL '4 months', CURRENT_DATE + INTERVAL '20 months', 32.00, 52.50, 48.00, 30, 'Locked Safe / Box S1')
-    ON CONFLICT (medicine_id, batch_no) DO NOTHING;
-  END IF;
-
-END $$;

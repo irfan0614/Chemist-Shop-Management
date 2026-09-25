@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { DataTable } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
+import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { fmtDate } from '../utils/formatters';
 
@@ -115,16 +116,14 @@ export function UsersPage() {
       sortable: false,
       exportable: false,
       render: (u) => (
-        <button
+        <Button
+          size="xs"
+          variant={u.is_active ? 'danger-outline' : 'primary'}
           onClick={() => handleToggleUserStatus(u)}
-          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
-            u.is_active
-              ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
-              : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-          }`}
+          className={u.is_active ? '' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}
         >
           {u.is_active ? 'Deactivate' : 'Activate'}
-        </button>
+        </Button>
       ),
     },
   ];
@@ -181,13 +180,14 @@ export function UsersPage() {
             </button>
           </div>
 
-          <button
+          <Button
+            variant="primary"
+            size="sm"
+            icon={UserPlus}
             onClick={() => setIsAddUserModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Add Shop Owner</span>
-          </button>
+            Add Shop Owner
+          </Button>
         </div>
       </div>
 
@@ -277,18 +277,18 @@ export function UsersPage() {
           </div>
 
           <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setIsAddUserModalOpen(false)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleCreateUser}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-950/20"
             >
               Create Account
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

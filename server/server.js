@@ -1,6 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { initDb } = require('./db/pool');
+
+// Initialize database schema
+initDb();
 
 const authRouter = require('./routes/auth');
 const medicinesRouter = require('./routes/medicines');

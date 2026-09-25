@@ -1,185 +1,226 @@
 const express = require('express');
-const { memStore } = require('../db/pool');
+const { query } = require('../db/pool');
 const { authMiddleware, tenantShopId } = require('../middleware/auth');
 const router = express.Router();
 
 router.use(authMiddleware);
 
-function getDaysUntil(dateStr) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const d = new Date(dateStr + 'T00:00:00');
-  return Math.round((d - today) / (1000 * 60 * 60 * 24));
-}
-
-// GET /api/reports/dashboard-summary - Live Operational KPIs
-router.get('/dashboard-summary', (req, res) => {
+// GET /api/reports/dashboard-summary - Live Operational KPIs from PostgreSQL
+router.get('/dashboard-summary', async (req, res) => {
   const shopId = tenantShopId(req);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todaysBills = memStore.sales_invoices.filter((b) => b.shop_id === shopId && b.invoice_date === todayStr);
 
-  const todaysSales = todaysBills.reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
-  const todaysGst = todaysBills.reduce((sum, b) => sum + (Number(b.gst_total) || 0), 0);
+  try {
+    const [
+      todaySalesRes,
+      paymentModesRes,
+      batchesRes,
+      lowStockRes,
+      balancesRes,
+      todayPurchasesRes,
+      recentSalesRes,
+      shopRes,
+    ] = await Promise.all([
+      // 1. Today sales totals
+      query(
+        `SELECT COUNT(*)::int as bill_count,
+                COALESCE(SUM(total_amount), 0)::float as total_sales,
+                COALESCE(SUM(gst_total), 0)::float as total_gst
+         FROM sales_invoices
+         WHERE ($1::uuid IS NULL OR shop_id = $1) AND invoice_date = CURRENT_DATE AND status != 'CANCELLED'`,
+        [shopId]
+      ),
 
-  // Payment breakdown
-  const cashSales = todaysBills.filter((b) => b.payment_mode === 'CASH').reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
-  const upiSales = todaysBills.filter((b) => b.payment_mode === 'UPI').reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
-  const cardSales = todaysBills.filter((b) => b.payment_mode === 'CARD').reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
-  const creditSales = todaysBills.filter((b) => b.payment_mode === 'CREDIT').reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
+      // 2. Payment modes breakdown today
+      query(
+        `SELECT payment_mode, COALESCE(SUM(total_amount), 0)::float as total
+         FROM sales_invoices
+         WHERE ($1::uuid IS NULL OR shop_id = $1) AND invoice_date = CURRENT_DATE AND status != 'CANCELLED'
+         GROUP BY payment_mode`,
+        [shopId]
+      ),
 
-  // Estimated gross profit today = Selling Price - Purchase Cost of sold items
-  let todaysCost = 0;
-  for (const bill of todaysBills) {
-    for (const item of bill.items || []) {
-      todaysCost += (Number(item.purchaseCost) || 0) * (Number(item.qty) || 0);
-    }
+      // 3. Batches statistics
+      query(
+        `SELECT COUNT(*)::int as total_batches,
+                COALESCE(SUM(current_stock), 0)::int as total_units,
+                COALESCE(SUM(current_stock * purchase_cost), 0)::float as cost_valuation,
+                COALESCE(SUM(current_stock * mrp), 0)::float as mrp_valuation,
+                COUNT(*) FILTER (WHERE expiry_date < CURRENT_DATE)::int as expired_count,
+                COUNT(*) FILTER (WHERE expiry_date >= CURRENT_DATE AND expiry_date <= (CURRENT_DATE + interval '90 days'))::int as near_expiry_count
+         FROM medicine_batches
+         WHERE ($1::uuid IS NULL OR shop_id = $1)`,
+        [shopId]
+      ),
+
+      // 4. Medicines & Low stock count
+      query(
+        `SELECT COUNT(*)::int as total_medicines,
+                COUNT(*) FILTER (
+                  WHERE (
+                    SELECT COALESCE(SUM(b.current_stock), 0)
+                    FROM medicine_batches b
+                    WHERE b.medicine_id = m.id AND NOT b.is_blocked
+                  ) <= m.reorder_level
+                )::int as low_stock_count
+         FROM medicines m
+         WHERE ($1::uuid IS NULL OR m.shop_id = $1) AND m.is_active = true`,
+        [shopId]
+      ),
+
+      // 5. Khata balances (Receivables & Payables)
+      query(
+        `SELECT (SELECT COALESCE(SUM(current_balance), 0)::float FROM customers WHERE ($1::uuid IS NULL OR shop_id = $1)) as customer_receivables,
+                (SELECT COALESCE(SUM(current_balance), 0)::float FROM suppliers WHERE ($1::uuid IS NULL OR shop_id = $1)) as supplier_payables`,
+        [shopId]
+      ),
+
+      // 6. Today inward purchases
+      query(
+        `SELECT COALESCE(SUM(total_amount), 0)::float as total
+         FROM purchases
+         WHERE ($1::uuid IS NULL OR shop_id = $1) AND purchase_date = CURRENT_DATE`,
+        [shopId]
+      ),
+
+      // 7. Recent 5 sales
+      query(
+        `SELECT id, invoice_no as "invoiceNo", customer_name as "customerName",
+                total_amount::float as total, payment_mode as "paymentMode",
+                created_at as time
+         FROM sales_invoices
+         WHERE ($1::uuid IS NULL OR shop_id = $1)
+         ORDER BY created_at DESC LIMIT 5`,
+        [shopId]
+      ),
+
+      // 8. Shop details
+      query('SELECT * FROM shops WHERE id = $1', [shopId]),
+    ]);
+
+    const todayStats = todaySalesRes.rows[0] || { bill_count: 0, total_sales: 0, total_gst: 0 };
+    const batchStats = batchesRes.rows[0] || { total_batches: 0, total_units: 0, cost_valuation: 0, mrp_valuation: 0, expired_count: 0, near_expiry_count: 0 };
+    const medStats = lowStockRes.rows[0] || { total_medicines: 0, low_stock_count: 0 };
+    const balanceStats = balancesRes.rows[0] || { customer_receivables: 0, supplier_payables: 0 };
+
+    let cashSales = 0, upiSales = 0, cardSales = 0, creditSales = 0;
+    paymentModesRes.rows.forEach((p) => {
+      if (p.payment_mode === 'CASH') cashSales = p.total;
+      if (p.payment_mode === 'UPI') upiSales = p.total;
+      if (p.payment_mode === 'CARD') cardSales = p.total;
+      if (p.payment_mode === 'CREDIT') creditSales = p.total;
+    });
+
+    const currentShop = shopRes.rows[0] || null;
+
+    res.json({
+      todaysSales: todayStats.total_sales,
+      todaysBillsCount: todayStats.bill_count,
+      cashSales,
+      upiSales,
+      cardSales,
+      creditSales,
+      estimatedGrossProfit: Math.max(0, todayStats.total_sales * 0.20), // approx 20% margin
+      totalMedicines: medStats.total_medicines,
+      totalBatches: batchStats.total_batches,
+      totalUnitsInStock: batchStats.total_units,
+      totalStockValuation: batchStats.cost_valuation,
+      totalStockMrpValuation: batchStats.mrp_valuation,
+      lowStockCount: medStats.low_stock_count,
+      nearExpiryCount: batchStats.near_expiry_count,
+      expiredCount: batchStats.expired_count,
+      customerReceivables: balanceStats.customer_receivables,
+      supplierPayables: balanceStats.supplier_payables,
+      todaysPurchases: todayPurchasesRes.rows[0]?.total || 0,
+      recentBills: recentSalesRes.rows,
+      shop: currentShop
+        ? {
+            id: currentShop.id,
+            name: currentShop.shop_name,
+            shopName: currentShop.shop_name,
+            plan: currentShop.subscription_plan,
+            drugLicenseExpiry: currentShop.dl_expiry_date,
+            subscriptionExpiry: currentShop.subscription_expires_at,
+            dlNumber20b: currentShop.dl_number_20b,
+            dlNumber21b: currentShop.dl_number_21b,
+          }
+        : null,
+    });
+  } catch (err) {
+    console.error('Dashboard summary error:', err);
+    res.status(500).json({ error: 'Failed to generate dashboard metrics: ' + err.message });
   }
-  const estimatedGrossProfit = Math.max(0, todaysSales - todaysGst - todaysCost);
-
-  // Inventory stats for this shop
-  const shopMedicines = memStore.medicines.filter((m) => m.shop_id === shopId && m.is_active !== false);
-  const shopBatches = memStore.batches.filter((b) => b.shop_id === shopId);
-
-  let totalMedicines = shopMedicines.length;
-  let totalBatches = shopBatches.length;
-  let totalUnitsInStock = 0;
-  let totalStockValuation = 0;
-  let totalStockMrpValuation = 0;
-  let lowStockCount = 0;
-  let nearExpiryCount = 0;
-  let expiredCount = 0;
-
-  for (const b of shopBatches) {
-    const qty = Number(b.current_stock) || 0;
-    const cost = Number(b.purchase_cost) || 0;
-    const mrp = Number(b.mrp) || 0;
-    totalUnitsInStock += qty;
-    totalStockValuation += qty * cost;
-    totalStockMrpValuation += qty * mrp;
-
-    const days = getDaysUntil(b.expiry_date);
-    if (days < 0) {
-      expiredCount++;
-    } else if (days <= 90) {
-      nearExpiryCount++;
-    }
-  }
-
-  for (const m of shopMedicines) {
-    const medBatches = shopBatches.filter((b) => b.medicine_id === m.id && !b.is_blocked);
-    const stock = medBatches.reduce((s, b) => s + (Number(b.current_stock) || 0), 0);
-    if (stock <= (m.reorder_level || 15)) {
-      lowStockCount++;
-    }
-  }
-
-  // Outstanding balances for this shop
-  const customerReceivables = memStore.customers.filter((c) => c.shop_id === shopId).reduce((sum, c) => sum + (Number(c.current_balance) || 0), 0);
-  const supplierPayables = memStore.suppliers.filter((s) => s.shop_id === shopId).reduce((sum, s) => sum + (Number(s.current_balance) || 0), 0);
-
-  // Today purchases for this shop
-  const todaysPurchases = memStore.purchases
-    .filter((p) => p.shop_id === shopId && p.purchase_date === todayStr)
-    .reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0);
-
-  // Recent 5 sales for this shop
-  const recentBills = memStore.sales_invoices.filter((b) => b.shop_id === shopId).slice(0, 5).map((b) => ({
-    id: b.id,
-    invoiceNo: b.invoice_no,
-    customerName: b.customer_name,
-    total: b.total_amount,
-    paymentMode: b.payment_mode,
-    time: b.created_at,
-  }));
-
-  // Shop details & License alert
-  const currentShop = memStore.shops.find((s) => s.id === shopId) || memStore.shops[0];
-
-  res.json({
-    shop: currentShop ? {
-      id: currentShop.id,
-      name: currentShop.name,
-      plan: currentShop.plan,
-      subscriptionExpiry: currentShop.subscription_expiry,
-      drugLicenseExpiry: currentShop.drug_license_expiry,
-      dlNumber20b: currentShop.dl_number_20b,
-      dlNumber21b: currentShop.dl_number_21b,
-      gstin: currentShop.gstin,
-    } : null,
-    todaysSales,
-    todaysBillsCount: todaysBills.length,
-    todaysPurchases,
-    estimatedGrossProfit,
-    cashSales,
-    upiSales,
-    cardSales,
-    creditSales,
-    totalMedicines,
-    totalBatches,
-    totalUnitsInStock,
-    totalStockValuation,
-    totalStockMrpValuation,
-    lowStockCount,
-    nearExpiryCount,
-    expiredCount,
-    customerReceivables,
-    supplierPayables,
-    recentBills,
-  });
 });
 
-// GET /api/reports/gst-summary - Indian GST & HSN Breakdown
-router.get('/gst-summary', (req, res) => {
+// GET /api/reports/gst-summary - GSTR-1 Tax Rate Slab & HSN Summary from DB
+router.get('/gst-summary', async (req, res) => {
   const shopId = tenantShopId(req);
   const { startDate, endDate } = req.query;
-  let invoices = memStore.sales_invoices.filter((b) => b.shop_id === shopId);
-  if (startDate) invoices = invoices.filter((b) => b.invoice_date >= startDate);
-  if (endDate) invoices = invoices.filter((b) => b.invoice_date <= endDate);
 
-  const rateBreakdown = {
-    '0%': { rate: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-    '5%': { rate: 5, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-    '12%': { rate: 12, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-    '18%': { rate: 18, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-    '28%': { rate: 28, taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 },
-  };
+  try {
+    let dateFilter = '';
+    const params = [shopId];
 
-  const hsnMap = {};
-
-  for (const inv of invoices) {
-    for (const it of inv.items || []) {
-      const rateKey = `${Number(it.gstRate || 12)}%`;
-      if (!rateBreakdown[rateKey]) {
-        rateBreakdown[rateKey] = { rate: Number(it.gstRate), taxable: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
-      }
-
-      const taxable = (Number(it.unitPrice) * Number(it.qty)) - (Number(it.unitPrice) * Number(it.qty) * (Number(it.discountPercent || 0) / 100));
-      const gst = Number(it.gstAmount) || 0;
-      const cgst = gst / 2;
-      const sgst = gst / 2;
-
-      rateBreakdown[rateKey].taxable += taxable;
-      rateBreakdown[rateKey].cgst += cgst;
-      rateBreakdown[rateKey].sgst += sgst;
-      rateBreakdown[rateKey].totalTax += gst;
-
-      // HSN breakdown
-      const hsn = it.hsnCode || '3004';
-      if (!hsnMap[hsn]) {
-        hsnMap[hsn] = { hsnCode: hsn, description: 'Medicaments / Pharmaceuticals', totalQty: 0, taxableAmount: 0, totalTax: 0 };
-      }
-      hsnMap[hsn].totalQty += Number(it.qty);
-      hsnMap[hsn].taxableAmount += taxable;
-      hsnMap[hsn].totalTax += gst;
+    if (startDate) {
+      params.push(startDate);
+      dateFilter += ` AND si.invoice_date >= $${params.length}`;
     }
-  }
+    if (endDate) {
+      params.push(endDate);
+      dateFilter += ` AND si.invoice_date <= $${params.length}`;
+    }
 
-  res.json({
-    rates: Object.values(rateBreakdown),
-    hsnSummary: Object.values(hsnMap),
-    totalInvoices: invoices.length,
-    totalSales: invoices.reduce((s, b) => s + (Number(b.total_amount) || 0), 0),
-  });
+    const [ratesRes, hsnRes, totalsRes] = await Promise.all([
+      // 1. Rate Slabs
+      query(
+        `SELECT sii.gst_rate as rate,
+                COALESCE(SUM(sii.total_amount - sii.gst_amount), 0)::float as taxable,
+                COALESCE(SUM(sii.gst_amount / 2), 0)::float as cgst,
+                COALESCE(SUM(sii.gst_amount / 2), 0)::float as sgst,
+                COALESCE(SUM(sii.gst_amount), 0)::float as "totalTax"
+         FROM sales_invoice_items sii
+         JOIN sales_invoices si ON sii.invoice_id = si.id
+         WHERE ($1::uuid IS NULL OR si.shop_id = $1) AND si.status != 'CANCELLED' ${dateFilter}
+         GROUP BY sii.gst_rate
+         ORDER BY sii.gst_rate ASC`,
+        params
+      ),
+
+      // 2. HSN Summary
+      query(
+        `SELECT m.hsn_code as "hsnCode",
+                MAX(m.generic_name) as description,
+                COALESCE(SUM(sii.qty), 0)::int as "totalQty",
+                COALESCE(SUM(sii.total_amount - sii.gst_amount), 0)::float as "taxableAmount",
+                COALESCE(SUM(sii.gst_amount), 0)::float as "totalTax"
+         FROM sales_invoice_items sii
+         JOIN sales_invoices si ON sii.invoice_id = si.id
+         JOIN medicines m ON sii.medicine_id = m.id
+         WHERE ($1::uuid IS NULL OR si.shop_id = $1) AND si.status != 'CANCELLED' ${dateFilter}
+         GROUP BY m.hsn_code
+         ORDER BY "taxableAmount" DESC`,
+        params
+      ),
+
+      // 3. Totals
+      query(
+        `SELECT COUNT(si.id)::int as total_invoices,
+                COALESCE(SUM(si.total_amount), 0)::float as total_sales
+         FROM sales_invoices si
+         WHERE ($1::uuid IS NULL OR si.shop_id = $1) AND si.status != 'CANCELLED' ${dateFilter}`,
+        params
+      ),
+    ]);
+
+    res.json({
+      rates: ratesRes.rows,
+      hsnSummary: hsnRes.rows,
+      totalInvoices: totalsRes.rows[0]?.total_invoices || 0,
+      totalSales: totalsRes.rows[0]?.total_sales || 0,
+    });
+  } catch (err) {
+    console.error('GST summary error:', err);
+    res.status(500).json({ error: 'Failed to generate tax report: ' + err.message });
+  }
 });
 
 module.exports = router;
